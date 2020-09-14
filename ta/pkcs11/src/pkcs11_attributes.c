@@ -718,7 +718,7 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 		}
 	}
 
-	rc = sanitize_client_object(&temp, template, template_size);
+	rc = sanitize_client_object(&temp, template, template_size, false);
 	if (rc)
 		goto out;
 

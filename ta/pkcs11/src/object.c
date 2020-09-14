@@ -567,7 +567,8 @@ enum pkcs11_rc entry_find_objects_init(struct pkcs11_client *client,
 	}
 
 	rc = sanitize_client_object(&req_attrs, template,
-				    sizeof(*template) + template->attrs_size);
+				    sizeof(*template) + template->attrs_size,
+				    true);
 	if (rc)
 		goto out;
 

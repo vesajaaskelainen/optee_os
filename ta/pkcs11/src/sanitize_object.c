@@ -208,37 +208,43 @@ static enum pkcs11_rc sanitize_boolprops(struct obj_attrs **dst, void *src,
 
 static uint32_t sanitize_indirect_attr(struct obj_attrs **dst,
 				       struct pkcs11_attribute_head *cli_ref,
-				       char *data)
+				       char *data, bool find_objects)
 {
 	struct obj_attrs *obj2 = NULL;
 	enum pkcs11_rc rc = PKCS11_CKR_OK;
 	enum pkcs11_class_id class = get_class(*dst);
 
-	if (class == PKCS11_CKO_UNDEFINED_ID)
-		return PKCS11_CKR_GENERAL_ERROR;
+	if (!find_objects) {
+		if (class == PKCS11_CKO_UNDEFINED_ID)
+			return PKCS11_CKR_GENERAL_ERROR;
 
-	/*
-	 * Serialized attributes: current applicable only to the key
-	 * templates which are tables of attributes.
-	 */
-	switch (cli_ref->id) {
-	case PKCS11_CKA_WRAP_TEMPLATE:
-	case PKCS11_CKA_UNWRAP_TEMPLATE:
-	case PKCS11_CKA_DERIVE_TEMPLATE:
-		break;
-	default:
-		return PKCS11_RV_NOT_FOUND;
+		/*
+		 * Serialized attributes: current applicable only to the key
+		 * templates which are tables of attributes.
+		 */
+		switch (cli_ref->id) {
+		case PKCS11_CKA_WRAP_TEMPLATE:
+		case PKCS11_CKA_UNWRAP_TEMPLATE:
+		case PKCS11_CKA_DERIVE_TEMPLATE:
+			break;
+		default:
+			return PKCS11_RV_NOT_FOUND;
+		}
+		/*
+		 * Such attributes are expected only for keys (and vendor
+		 * defined)
+		 */
+		if (pkcs11_attr_class_is_key(class))
+			return PKCS11_CKR_TEMPLATE_INCONSISTENT;
+
 	}
-	/* Such attributes are expected only for keys (and vendor defined) */
-	if (pkcs11_attr_class_is_key(class))
-		return PKCS11_CKR_TEMPLATE_INCONSISTENT;
 
 	rc = init_attributes_head(&obj2);
 	if (rc)
 		return rc;
 
 	/* Build a new serial object while sanitizing the attributes list */
-	rc = sanitize_client_object(&obj2, data, cli_ref->size);
+	rc = sanitize_client_object(&obj2, data, cli_ref->size, find_objects);
 	if (rc)
 		goto out;
 
@@ -250,7 +256,7 @@ out:
 }
 
 enum pkcs11_rc sanitize_client_object(struct obj_attrs **dst, void *src,
-				      size_t size)
+				      size_t size, bool find_objects)
 {
 	struct pkcs11_attribute_head cli_ref = { };
 	struct pkcs11_object_head head = { };
@@ -292,7 +298,7 @@ enum pkcs11_rc sanitize_client_object(struct obj_attrs **dst, void *src,
 		    pkcs11_attr_is_boolean(cli_ref.id))
 			continue;
 
-		rc = sanitize_indirect_attr(dst, &cli_ref, data);
+		rc = sanitize_indirect_attr(dst, &cli_ref, data, find_objects);
 		if (rc == PKCS11_CKR_OK)
 			continue;
 		if (rc != PKCS11_RV_NOT_FOUND)
