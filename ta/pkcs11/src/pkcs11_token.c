@@ -35,11 +35,14 @@
  *
  * @link - chained list of registered client applications
  * @sessions - list of the PKCS11 sessions opened by the client application
+ * @token_object_handle_db - Database for token object handles published by the
+ * shared sessions
  */
 struct pkcs11_client {
 	TAILQ_ENTRY(pkcs11_client) link;
 	struct session_list session_list;
 	struct handle_db session_handle_db;
+	struct handle_db token_object_handle_db[TOKEN_COUNT];
 };
 
 /* Static allocation of tokens runtime instances (reset to 0 at load) */
@@ -66,6 +69,13 @@ unsigned int get_token_id(struct ck_token *token)
 	return id;
 }
 
+struct handle_db *get_token_shared_object_handle_db(struct pkcs11_session *session)
+{
+	unsigned int id = get_token_id(session->token);
+
+	return &session->client->token_object_handle_db[id];
+}
+
 struct pkcs11_client *tee_session2client(void *tee_session)
 {
 	struct pkcs11_client *client = NULL;
@@ -86,6 +96,7 @@ struct pkcs11_session *pkcs11_handle2session(uint32_t handle,
 struct pkcs11_client *register_client(void)
 {
 	struct pkcs11_client *client = NULL;
+	unsigned int id = 0;
 
 	client = TEE_Malloc(sizeof(*client), TEE_MALLOC_FILL_ZERO);
 	if (!client)
@@ -94,6 +105,8 @@ struct pkcs11_client *register_client(void)
 	TAILQ_INSERT_HEAD(&pkcs11_client_list, client, link);
 	TAILQ_INIT(&client->session_list);
 	handle_db_init(&client->session_handle_db);
+	for (id = 0; id < TOKEN_COUNT; id++)
+		handle_db_init(&client->token_object_handle_db[id]);
 
 	return client;
 }
@@ -102,6 +115,7 @@ void unregister_client(struct pkcs11_client *client)
 {
 	struct pkcs11_session *session = NULL;
 	struct pkcs11_session *next = NULL;
+	unsigned int id = 0;
 
 	if (!client) {
 		EMSG("Invalid TEE session handle");
@@ -112,6 +126,8 @@ void unregister_client(struct pkcs11_client *client)
 		close_ck_session(session);
 
 	TAILQ_REMOVE(&pkcs11_client_list, client, link);
+	for (id = 0; id < TOKEN_COUNT; id++)
+		handle_db_destroy(&client->token_object_handle_db[id]);
 	handle_db_destroy(&client->session_handle_db);
 	TEE_Free(client);
 }
@@ -634,7 +650,6 @@ enum pkcs11_rc entry_ck_open_session(struct pkcs11_client *client,
 	session->client = client;
 
 	LIST_INIT(&session->object_list);
-	handle_db_init(&session->object_handle_db);
 
 	set_session_state(client, session, readonly);
 
@@ -665,7 +680,6 @@ static void close_ck_session(struct pkcs11_session *session)
 
 	TAILQ_REMOVE(&session->client->session_list, session, link);
 	handle_put(&session->client->session_handle_db, session->handle);
-	handle_db_destroy(&session->object_handle_db);
 
 	// If no more session, next opened one will simply be Public login
 
