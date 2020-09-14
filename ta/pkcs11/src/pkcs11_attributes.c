@@ -334,11 +334,11 @@ static const uint32_t pkcs11_public_key_boolprops[] = {
 };
 
 static const uint32_t pkcs11_public_key_mandated[] = {
-	PKCS11_CKA_SUBJECT
 };
 
 static const uint32_t pkcs11_public_key_optional[] = {
-	PKCS11_CKA_WRAP_TEMPLATE, PKCS11_CKA_PUBLIC_KEY_INFO,
+	PKCS11_CKA_SUBJECT, PKCS11_CKA_WRAP_TEMPLATE,
+	PKCS11_CKA_PUBLIC_KEY_INFO,
 };
 
 /* PKCS#11 specification for any asymmetric private key (+pkcs11_any_key_xxx) */
@@ -350,11 +350,11 @@ static const uint32_t pkcs11_private_key_boolprops[] = {
 };
 
 static const uint32_t pkcs11_private_key_mandated[] = {
-	PKCS11_CKA_SUBJECT
 };
 
 static const uint32_t pkcs11_private_key_optional[] = {
-	PKCS11_CKA_UNWRAP_TEMPLATE, PKCS11_CKA_PUBLIC_KEY_INFO,
+	PKCS11_CKA_SUBJECT, PKCS11_CKA_UNWRAP_TEMPLATE,
+	PKCS11_CKA_PUBLIC_KEY_INFO,
 };
 
 /* PKCS#11 specification for any RSA key (+pkcs11_public/private_key_xxx) */
