@@ -948,6 +948,134 @@ out:
 	return rc;
 }
 
+uint32_t entry_set_attribute_value(struct pkcs11_client *client,
+				   uint32_t ptypes, TEE_Param *params)
+{
+	const uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_NONE);
+	TEE_Param *ctrl = params;
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+	struct serialargs ctrlargs = { };
+	struct pkcs11_session *session = NULL;
+	struct pkcs11_object_head *template = NULL;
+	struct pkcs11_object *obj = NULL;
+	uint32_t object_handle = 0;
+	char *cur = NULL;
+	size_t len = 0;
+	char *end = NULL;
+	bool modifiable = 0;
+
+	if (!client || ptypes != exp_pt)
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	serialargs_init(&ctrlargs, ctrl->memref.buffer, ctrl->memref.size);
+
+	rc = serialargs_get_session_from_handle(&ctrlargs, client, &session);
+	if (rc)
+		return rc;
+
+	rc = serialargs_get(&ctrlargs, &object_handle, sizeof(uint32_t));
+	if (rc)
+		return rc;
+
+	rc = serialargs_alloc_get_attributes(&ctrlargs, &template);
+	if (rc)
+		return rc;
+
+	if (serialargs_remaining_bytes(&ctrlargs)) {
+		rc = PKCS11_CKR_ARGUMENTS_BAD;
+		goto out;
+	}
+
+	obj = pkcs11_handle2object(object_handle, session);
+	if (!obj) {
+		rc = PKCS11_CKR_OBJECT_HANDLE_INVALID;
+		goto out;
+	}
+
+	/*
+	 * 1. Modifications to object with secret details from public session
+	 *    is denied. On failure returns PKCS11_CKR_OBJECT_HANDLE_INVALID
+	 *    (to hide presence of object)
+	 *
+	 * 2. If object is not modifiable then access is denied. On failure
+	 *    returns CKR_ACTION_PROHIBITED
+	 *
+	 * 3. Perform rule check for common variables to verify if value can be
+	 *    changed. On failure returns CKR_TEMPLATE_INCONSISTENT.
+	 *
+	 * 4. Depending on object type additional mechanisms consistency checks
+	 *    need to be performed. On failure returns
+	 *    CKR_TEMPLATE_INCONSISTENT.
+	 */
+
+	/* 1. Verify that proper session is used for accessing the object */
+	rc = check_access_attrs_against_token(session, obj->attributes);
+	if (rc) {
+		rc = PKCS11_CKR_OBJECT_HANDLE_INVALID;
+		goto out;
+	}
+
+	/* 2. Verify that object can be modified. */
+	modifiable = object_is_modifiable(obj->attributes);
+	if (!modifiable) {
+		rc = PKCS11_CKR_ACTION_PROHIBITED;
+		goto out;
+	}
+
+	/* 3. iterate over attributes and check if we can set their values */
+	cur = (char *)template + sizeof(struct pkcs11_object_head);
+	end = cur + template->attrs_size;
+
+	for (; cur < end; cur += len) {
+		struct pkcs11_attribute_head *cli_ref =
+			(struct pkcs11_attribute_head *)cur;
+
+		len = sizeof(*cli_ref) + cli_ref->size;
+
+		if (!attribute_is_settable(cli_ref, obj)) {
+			rc = PKCS11_CKR_TEMPLATE_INCONSISTENT;
+			goto out;
+		}
+	}
+
+	/* 4. TODO: mechanism consistency checks */
+
+	/* Everything is OK perform set operations */
+
+	/* iterate over attributes and set their values */
+	cur = (char *)template + sizeof(struct pkcs11_object_head);
+	end = cur + template->attrs_size;
+
+	for (; cur < end; cur += len) {
+		struct pkcs11_attribute_head *cli_ref =
+			(struct pkcs11_attribute_head *)cur;
+
+		len = sizeof(*cli_ref) + cli_ref->size;
+
+		/*
+		 * We assume that if size is 0, pValue was NULL, so we return
+		 * the size of the required buffer for it (3., 4.)
+		 */
+		rc = set_attribute(&obj->attributes, cli_ref->id,
+				   cli_ref->size ? cli_ref->data : NULL,
+				   cli_ref->size);
+		if (rc)
+			goto out;
+	}
+
+	DMSG("PKCS11 session %"PRIu32": set attributes %#"PRIx32,
+	     session->handle, object_handle);
+
+out:
+	TEE_Free(template);
+	template = NULL;
+
+	return rc;
+}
+
 uint32_t entry_get_object_size(struct pkcs11_client *client,
 			       uint32_t ptypes, TEE_Param *params)
 {

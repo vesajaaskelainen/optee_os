@@ -381,6 +381,22 @@ found:
 	return PKCS11_CKR_OK;
 }
 
+enum pkcs11_rc set_attribute(struct obj_attrs **head, uint32_t attribute,
+			     void *data, size_t size)
+{
+	enum pkcs11_rc rc = PKCS11_CKR_OK;
+
+	rc = remove_attribute_check(head, attribute, 1);
+	if (rc != PKCS11_CKR_OK && rc != PKCS11_RV_NOT_FOUND)
+		return rc;
+
+	rc = add_attribute(head, attribute, data, size);
+	if (rc)
+		return rc;
+
+	return PKCS11_CKR_OK;
+}
+
 bool get_bool(struct obj_attrs *head, uint32_t attribute)
 {
 	enum pkcs11_rc rc = PKCS11_CKR_OK;

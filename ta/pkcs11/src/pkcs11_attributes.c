@@ -1445,6 +1445,11 @@ bool object_is_private(struct obj_attrs *head)
 	return false;
 }
 
+bool object_is_modifiable(struct obj_attrs *head)
+{
+	return get_bool(head, PKCS11_CKA_MODIFIABLE);
+}
+
 /*
  * Add a CKA ID attribute to an object or paired object if missing.
  * If 2 objects are provided and at least 1 does not have a CKA_ID,
@@ -1539,5 +1544,36 @@ bool attribute_is_exportable(struct pkcs11_attribute_head *req_attr,
 		break;
 	}
 
+	return true;
+}
+
+bool attribute_is_settable(struct pkcs11_attribute_head *req_attr,
+			   struct pkcs11_object *obj)
+{
+	uint8_t boolval = 0;
+	uint32_t boolsize = 0;
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+
+	switch (req_attr->id) {
+	case PKCS11_CKA_SENSITIVE:
+		/* Only allow change from CK_FALSE -> CK_TRUE */
+		boolsize = sizeof(boolval);
+		rc = get_attribute(obj->attributes, PKCS11_CKA_SENSITIVE,
+				   &boolval, &boolsize);
+		if (rc || boolval == PKCS11_TRUE)
+			return false;
+		break;
+
+	case PKCS11_CKA_EXTRACTABLE:
+		/* Only allow change from CK_TRUE -> CK_FALSE */
+		boolsize = sizeof(boolval);
+		rc = get_attribute(obj->attributes, PKCS11_CKA_EXTRACTABLE,
+				   &boolval, &boolsize);
+		if (rc || boolval == PKCS11_FALSE)
+			return false;
+		break;
+	default:
+		break;
+	}
 	return true;
 }
