@@ -21,13 +21,15 @@
 struct pkcs11_object *pkcs11_handle2object(uint32_t handle,
 					   struct pkcs11_session *session)
 {
-	return handle_lookup(&session->object_handle_db, handle);
+	return handle_lookup(get_token_shared_object_handle_db(session),
+			     handle);
 }
 
 uint32_t pkcs11_object2handle(struct pkcs11_object *obj,
 			      struct pkcs11_session *session)
 {
-	return handle_lookup_handle(&session->object_handle_db, obj);
+	return handle_lookup_handle(get_token_shared_object_handle_db(session),
+				    obj);
 }
 
 /* Currently handle pkcs11 sessions and tokens */
@@ -123,7 +125,7 @@ void destroy_object(struct pkcs11_session *session, struct pkcs11_object *obj,
 
 	if (session_only) {
 		/* Destroy object due to session closure */
-		handle_put(&session->object_handle_db,
+		handle_put(get_token_shared_object_handle_db(session),
 			   pkcs11_object2handle(obj, session));
 		cleanup_volatile_obj_ref(obj);
 
@@ -138,11 +140,11 @@ void destroy_object(struct pkcs11_session *session, struct pkcs11_object *obj,
 		    unregister_persistent_object(session->token, obj->uuid))
 			TEE_Panic(0);
 
-		handle_put(&session->object_handle_db,
+		handle_put(get_token_shared_object_handle_db(session),
 			   pkcs11_object2handle(obj, session));
 		cleanup_persistent_object(obj, session->token);
 	} else {
-		handle_put(&session->object_handle_db,
+		handle_put(get_token_shared_object_handle_db(session),
 			   pkcs11_object2handle(obj, session));
 		cleanup_volatile_obj_ref(obj);
 	}
@@ -203,7 +205,8 @@ enum pkcs11_rc create_object(void *sess, struct obj_attrs *head,
 		return PKCS11_CKR_DEVICE_MEMORY;
 
 	/* Create a handle for the object in the session database */
-	obj_handle = handle_get(&session->object_handle_db, obj);
+	obj_handle = handle_get(get_token_shared_object_handle_db(session),
+				obj);
 	if (!obj_handle) {
 		rc = PKCS11_CKR_DEVICE_MEMORY;
 		goto err;
@@ -256,7 +259,7 @@ enum pkcs11_rc create_object(void *sess, struct obj_attrs *head,
 err:
 	/* make sure that supplied "head" isn't freed */
 	obj->attributes = NULL;
-	handle_put(&session->object_handle_db, obj_handle);
+	handle_put(get_token_shared_object_handle_db(session), obj_handle);
 	if (get_bool(head, PKCS11_CKA_TOKEN))
 		cleanup_persistent_object(obj, session->token);
 	else
@@ -650,7 +653,8 @@ enum pkcs11_rc entry_find_objects_init(struct pkcs11_client *client,
 		/* Object may not yet be published in the session */
 		handle = pkcs11_object2handle(obj, session);
 		if (!handle) {
-			handle = handle_get(&session->object_handle_db, obj);
+			handle = handle_get(get_token_shared_object_handle_db(session),
+					    obj);
 			if (!handle) {
 				rc = PKCS11_CKR_DEVICE_MEMORY;
 				goto out;

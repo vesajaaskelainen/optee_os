@@ -182,7 +182,6 @@ struct pkcs11_session {
 	struct ck_token *token;
 	enum pkcs11_mechanism_id handle;
 	struct object_list object_list;
-	struct handle_db object_handle_db;
 	enum pkcs11_session_state state;
 	struct active_processing *processing;
 	struct pkcs11_find_objects *find_ctx;
@@ -197,6 +196,9 @@ struct ck_token *get_token(unsigned int token_id);
 
 /* Return token identified from token instance address */
 unsigned int get_token_id(struct ck_token *token);
+
+/* Return token's shared object handle database (in client's session context) */
+struct handle_db *get_token_shared_object_handle_db(struct pkcs11_session *session);
 
 /* Access to persistent database */
 struct ck_token *init_persistent_db(unsigned int token_id);
