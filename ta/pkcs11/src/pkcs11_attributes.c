@@ -378,12 +378,11 @@ static const uint32_t pkcs11_ec_public_key_optional[] = {
 };
 
 static const uint32_t pkcs11_ec_private_key_mandated[] = {
-	PKCS11_CKA_EC_PARAMS,
 };
 
 static const uint32_t pkcs11_ec_private_key_optional[] = {
+	PKCS11_CKA_EC_PARAMS,
 	PKCS11_CKA_VALUE,
-	PKCS11_CKA_EC_POINT,
 };
 
 static enum pkcs11_rc create_storage_attributes(struct obj_attrs **out,

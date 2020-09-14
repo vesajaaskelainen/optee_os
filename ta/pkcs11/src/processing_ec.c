@@ -1239,7 +1239,7 @@ uint32_t generate_ec_keys(struct pkcs11_attribute_head *proc_params,
 
 	if (remove_empty_attribute(pub_head, PKCS11_CKA_EC_POINT) ||
 	    remove_empty_attribute(priv_head, PKCS11_CKA_VALUE) ||
-	    remove_empty_attribute(priv_head, PKCS11_CKA_EC_POINT)) {
+	    remove_empty_attribute(priv_head, PKCS11_CKA_EC_PARAMS)) {
 		EMSG("Unexpected attribute(s) found");
 		trace_attributes("public-key", *pub_head);
 		trace_attributes("privat-key", *priv_head);
@@ -1281,12 +1281,7 @@ uint32_t generate_ec_keys(struct pkcs11_attribute_head *proc_params,
 		goto out;
 	}
 
-	/*
-	 * Private key needs the same EC_PARAMS as used by the public key.
-	 * Since it is also common for userspace to provide an empty private
-	 * EC_PARAMS, make sure to remove before adding the correct one.
-	 */
-	remove_attribute(priv_head, PKCS11_CKA_EC_PARAMS);
+	/* Private key needs the same EC_PARAMS as used by the public key */
 	rc = add_attribute(priv_head, PKCS11_CKA_EC_PARAMS, a_ptr, a_size);
 	if (rc)
 		goto out;
