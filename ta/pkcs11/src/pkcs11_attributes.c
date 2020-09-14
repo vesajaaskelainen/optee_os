@@ -689,7 +689,7 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 			break;
 		case PKCS11_CKM_EC_KEY_PAIR_GEN:
 			class = template_class;
-			type = PKCS11_CKK_DH;
+			type = PKCS11_CKK_EC;
 			break;
 		case PKCS11_CKM_RSA_PKCS_KEY_PAIR_GEN:
 			class = template_class;
