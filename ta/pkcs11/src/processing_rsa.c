@@ -461,6 +461,7 @@ uint32_t generate_rsa_keys(struct pkcs11_attribute_head *proc_params,
 {
 	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
 	void *a_ptr = NULL;
+	void *public_exponent = NULL;
 	uint32_t a_size = 0;
 	TEE_ObjectHandle tee_obj = TEE_HANDLE_NULL;
 	TEE_Result res = TEE_ERROR_GENERIC;
@@ -486,9 +487,16 @@ uint32_t generate_rsa_keys(struct pkcs11_attribute_head *proc_params,
 		return rc;
 
 	if (rc == PKCS11_CKR_OK && a_ptr) {
+		public_exponent = TEE_Malloc(a_size, TEE_MALLOC_FILL_ZERO);
+		if (!public_exponent) {
+			rc = PKCS11_CKR_DEVICE_MEMORY;
+			goto out;
+		}
+		TEE_MemMove(public_exponent, a_ptr, a_size);
+
 		TEE_InitRefAttribute(&tee_attrs[tee_count],
 				     TEE_ATTR_RSA_PUBLIC_EXPONENT,
-				     a_ptr, a_size);
+				     public_exponent, a_size);
 
 		tee_count++;
 	}
@@ -503,8 +511,8 @@ uint32_t generate_rsa_keys(struct pkcs11_attribute_head *proc_params,
 	    remove_empty_attribute(priv_head, PKCS11_CKA_EXPONENT_2) ||
 	    remove_empty_attribute(priv_head, PKCS11_CKA_COEFFICIENT)) {
 		EMSG("Unexpected attribute(s) found");
-
-		return PKCS11_CKR_TEMPLATE_INCONSISTENT;
+		rc = PKCS11_CKR_TEMPLATE_INCONSISTENT;
+		goto out;
 	}
 
 	/* Create an RSA TEE key */
@@ -513,7 +521,8 @@ uint32_t generate_rsa_keys(struct pkcs11_attribute_head *proc_params,
 	if (res) {
 		DMSG("TEE_AllocateTransientObject failed %#"PRIx32, res);
 
-		return tee2pkcs_error(res);
+		rc = tee2pkcs_error(res);
+		goto out;
 	}
 
 	res = TEE_RestrictObjectUsage1(tee_obj, TEE_USAGE_EXTRACTABLE);
@@ -538,6 +547,7 @@ out:
 	if (tee_obj != TEE_HANDLE_NULL)
 		TEE_CloseObject(tee_obj);
 
+	TEE_Free(public_exponent);
 	return rc;
 }
 
