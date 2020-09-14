@@ -648,7 +648,8 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 				size_t template_size,
 				struct obj_attrs *parent __unused,
 				enum processing_func function,
-				enum pkcs11_mechanism_id mecha)
+				enum pkcs11_mechanism_id mecha,
+				enum pkcs11_class_id template_class)
 {
 	struct obj_attrs *temp = NULL;
 	struct obj_attrs *attrs = NULL;
@@ -675,13 +676,12 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 	}
 #endif
 
-	rc = sanitize_client_object(&temp, template, template_size);
+	rc = init_attributes_head(&temp);
 	if (rc)
-		goto out;
+		return rc;
 
-	/* If class/type not defined, match from mechanism */
-	if (get_class(temp) == PKCS11_UNDEFINED_ID &&
-	    get_key_type(temp) == PKCS11_UNDEFINED_ID) {
+	/* Contribute class and key type based on mechanism & template class */
+	if (template_class != PKCS11_CKO_UNDEFINED_ID) {
 		switch (mecha) {
 		case PKCS11_CKM_GENERIC_SECRET_KEY_GEN:
 			class = PKCS11_CKO_SECRET_KEY;
@@ -692,9 +692,11 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 			type = PKCS11_CKK_AES;
 			break;
 		case PKCS11_CKM_EC_KEY_PAIR_GEN:
+			class = template_class;
 			type = PKCS11_CKK_DH;
 			break;
 		case PKCS11_CKM_RSA_PKCS_KEY_PAIR_GEN:
+			class = template_class;
 			type = PKCS11_CKK_RSA;
 			break;
 		default:
@@ -715,6 +717,10 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 				goto out;
 		}
 	}
+
+	rc = sanitize_client_object(&temp, template, template_size);
+	if (rc)
+		goto out;
 
 	if (!sanitize_consistent_class_and_type(temp)) {
 		EMSG("Inconsistent class/type");

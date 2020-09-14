@@ -268,9 +268,11 @@ enum pkcs11_rc sanitize_client_object(struct obj_attrs **dst, void *src,
 	    size < sz_from_hdr)
 		return PKCS11_CKR_ARGUMENTS_BAD;
 
-	rc = init_attributes_head(dst);
-	if (rc)
-		return rc;
+	if (!*dst) {
+		rc = init_attributes_head(dst);
+		if (rc)
+			return rc;
+	}
 
 	rc = sanitize_class_and_type(dst, src, sz_from_hdr);
 	if (rc)

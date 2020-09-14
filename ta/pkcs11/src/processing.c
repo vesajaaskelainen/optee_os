@@ -244,7 +244,8 @@ enum pkcs11_rc entry_generate_secret(struct pkcs11_client *client,
 	 */
 	rc = create_attributes_from_template(&head, template, template_size,
 					     NULL, PKCS11_FUNCTION_GENERATE,
-					     proc_params->id);
+					     proc_params->id,
+					     PKCS11_CKO_SECRET_KEY);
 	if (rc)
 		goto out;
 
@@ -421,7 +422,8 @@ enum pkcs11_rc entry_generate_key_pair(struct pkcs11_client *client,
 	rc = create_attributes_from_template(&pub_head,
 					     template, template_size, NULL,
 					     PKCS11_FUNCTION_GENERATE_PAIR,
-					     proc_params->id);
+					     proc_params->id,
+					     PKCS11_CKO_PUBLIC_KEY);
 	if (rc)
 		goto out;
 
@@ -442,7 +444,8 @@ enum pkcs11_rc entry_generate_key_pair(struct pkcs11_client *client,
 	rc = create_attributes_from_template(&priv_head,
 					     template, template_size, NULL,
 					     PKCS11_FUNCTION_GENERATE_PAIR,
-					     proc_params->id);
+					     proc_params->id,
+					     PKCS11_CKO_PRIVATE_KEY);
 	if (rc)
 		goto out;
 
@@ -844,7 +847,8 @@ enum pkcs11_rc entry_derive_key(struct pkcs11_client *client,
 	rc = create_attributes_from_template(&head, template, template_size,
 					     parent_obj->attributes,
 					     PKCS11_FUNCTION_DERIVE,
-					     proc_params->id);
+					     proc_params->id,
+					     PKCS11_CKO_UNDEFINED_ID);
 	if (rc)
 		goto out;
 
