@@ -964,9 +964,6 @@ enum pkcs11_attr_id {
 	 * CKF_ARRAY_ATTRIBUTE = 0x40000000.
 	 */
 	PKCS11_CKA_ALLOWED_MECHANISMS		= 0x40000600,
-	/* Temporary storage until DER/BigInt conversion is available */
-	PKCS11_CKA_EC_POINT_X			= 0x80001000,
-	PKCS11_CKA_EC_POINT_Y			= 0x80001001,
 	/* Vendor extension: reserved for undefined ID (~0U) */
 	PKCS11_CKA_UNDEFINED_ID			= PKCS11_UNDEFINED_ID,
 };
