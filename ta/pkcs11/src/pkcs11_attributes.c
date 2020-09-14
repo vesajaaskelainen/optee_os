@@ -1468,6 +1468,10 @@ enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
 	void *id2 = NULL;
 	uint32_t id2_size = 0;
 
+	rc = remove_empty_attribute(attrs1, PKCS11_CKA_ID);
+	if (rc)
+		return rc;
+
 	rc = get_attribute_ptr(*attrs1, PKCS11_CKA_ID, &id1, &id1_size);
 	if (rc) {
 		if (rc != PKCS11_RV_NOT_FOUND)
@@ -1476,6 +1480,10 @@ enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
 	}
 
 	if (attrs2) {
+		rc = remove_empty_attribute(attrs2, PKCS11_CKA_ID);
+		if (rc)
+			return rc;
+
 		rc = get_attribute_ptr(*attrs2, PKCS11_CKA_ID, &id2, &id2_size);
 		if (rc) {
 			if (rc != PKCS11_RV_NOT_FOUND)
