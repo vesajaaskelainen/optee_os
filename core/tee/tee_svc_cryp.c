@@ -1157,6 +1157,33 @@ TEE_Result tee_obj_attr_copy_from(struct tee_obj *o, const struct tee_obj *src)
 		} else if (o->info.objectType == TEE_TYPE_SM2_KEP_PUBLIC_KEY) {
 			if (src->info.objectType != TEE_TYPE_SM2_KEP_KEYPAIR)
 				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_GENERIC_SECRET) {
+			if (src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_HMAC_MD5) {
+			if (src->info.objectType != TEE_TYPE_HMAC_MD5 &&
+			    src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_HMAC_SHA1) {
+			if (src->info.objectType != TEE_TYPE_HMAC_SHA1 &&
+			    src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_HMAC_SHA224) {
+			if (src->info.objectType != TEE_TYPE_HMAC_SHA224 &&
+			    src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_HMAC_SHA256) {
+			if (src->info.objectType != TEE_TYPE_HMAC_SHA256 &&
+			    src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_HMAC_SHA384) {
+			if (src->info.objectType != TEE_TYPE_HMAC_SHA384 &&
+			    src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
+		} else if (o->info.objectType == TEE_TYPE_HMAC_SHA512) {
+			if (src->info.objectType != TEE_TYPE_HMAC_SHA512 &&
+			    src->info.objectType != TEE_TYPE_GENERIC_SECRET)
+				return TEE_ERROR_BAD_PARAMETERS;
 		} else {
 			return TEE_ERROR_BAD_PARAMETERS;
 		}
