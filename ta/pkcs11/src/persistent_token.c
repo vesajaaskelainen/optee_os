@@ -128,6 +128,160 @@ enum pkcs11_rc verify_pin(enum pkcs11_user_type user, const uint8_t *pin,
 	return rc;
 }
 
+enum pkcs11_rc setup_so_identity_auth_from_client(struct ck_token *token)
+{
+	TEE_Identity identity = { };
+	TEE_Result res = 0;
+
+	res = TEE_GetPropertyAsIdentity(TEE_PROPSET_CURRENT_CLIENT,
+					"gpd.client.identity", &identity);
+	if (res != TEE_SUCCESS) {
+		EMSG("TEE_GetPropertyAsIdentity: returned %#"PRIx32, res);
+		return PKCS11_CKR_PIN_INVALID;
+	}
+
+	TEE_MemMove(&token->db_main->so_identity, &identity,
+		    sizeof(TEE_Identity));
+	token->db_main->flags |= PKCS11_CKFT_PROTECTED_AUTHENTICATION_PATH;
+
+	token->db_main->so_pin_salt = 0;
+
+	return PKCS11_CKR_OK;
+}
+
+enum pkcs11_rc setup_identity_auth_from_pin(struct ck_token *token,
+					    enum pkcs11_user_type user_type,
+					    const uint8_t *pin,
+					    size_t pin_size)
+{
+	TEE_Identity identity = { };
+	TEE_Result res = 0;
+	uint32_t flags_clear = 0;
+	uint32_t flags_set = 0;
+	char *acl_string = NULL;
+	char *uuid_str = NULL;
+
+	if (!(token->db_main->flags &
+	      PKCS11_CKFT_PROTECTED_AUTHENTICATION_PATH))
+		return PKCS11_CKR_PIN_INVALID;
+
+	if (!pin) {
+		/* Use currently client identity */
+		res = TEE_GetPropertyAsIdentity(TEE_PROPSET_CURRENT_CLIENT,
+						"gpd.client.identity",
+						&identity);
+		if (res != TEE_SUCCESS) {
+			EMSG("TEE_GetPropertyAsIdentity: returned %#"PRIx32,
+			     res);
+			return PKCS11_CKR_PIN_INVALID;
+		}
+	} else {
+		/* Parse PIN ACL string: <login type>:<client id> */
+		acl_string = TEE_Malloc(pin_size + 1, TEE_MALLOC_FILL_ZERO);
+		if (!acl_string)
+			return PKCS11_CKR_GENERAL_ERROR;
+		TEE_MemMove(acl_string, pin, pin_size);
+
+		uuid_str = strstr(acl_string, ":");
+		if (uuid_str)
+			uuid_str++;
+
+		if (strcmp("public", acl_string) == 0) {
+			identity.login = TEE_LOGIN_PUBLIC;
+		} else if (strncmp(acl_string, "user:", 5) == 0) {
+			identity.login = TEE_LOGIN_USER;
+		} else if (strncmp(acl_string, "group:", 6) == 0) {
+			identity.login = TEE_LOGIN_GROUP;
+		} else {
+			EMSG("Invalid PIN ACL string - login");
+			TEE_Free(acl_string);
+			return PKCS11_CKR_PIN_INVALID;
+		}
+
+		if (identity.login != TEE_LOGIN_PUBLIC) {
+			if (!uuid_str) {
+				EMSG("Invalid PIN ACL string - colon");
+				TEE_Free(acl_string);
+				return PKCS11_CKR_PIN_INVALID;
+			}
+
+			res = tee_uuid_from_str(&identity.uuid, uuid_str);
+			if (res) {
+				EMSG("Invalid PIN ACL string - client id");
+				TEE_Free(acl_string);
+				return PKCS11_CKR_PIN_INVALID;
+			}
+		}
+
+		TEE_Free(acl_string);
+	}
+
+	switch (user_type) {
+	case PKCS11_CKU_SO:
+		token->db_main->so_pin_count = 0;
+		token->db_main->so_pin_salt = 0;
+		flags_clear = PKCS11_CKFT_SO_PIN_COUNT_LOW |
+			      PKCS11_CKFT_SO_PIN_FINAL_TRY |
+			      PKCS11_CKFT_SO_PIN_LOCKED |
+			      PKCS11_CKFT_SO_PIN_TO_BE_CHANGED;
+
+		TEE_MemMove(&token->db_main->so_identity, &identity,
+			    sizeof(TEE_Identity));
+		break;
+	case PKCS11_CKU_USER:
+		token->db_main->user_pin_count = 0;
+		token->db_main->user_pin_salt = 0;
+		flags_clear = PKCS11_CKFT_USER_PIN_COUNT_LOW |
+			      PKCS11_CKFT_USER_PIN_FINAL_TRY |
+			      PKCS11_CKFT_USER_PIN_LOCKED |
+			      PKCS11_CKFT_USER_PIN_TO_BE_CHANGED;
+		flags_set = PKCS11_CKFT_USER_PIN_INITIALIZED;
+
+		TEE_MemMove(&token->db_main->user_identity, &identity,
+			    sizeof(TEE_Identity));
+		break;
+	default:
+		return PKCS11_CKR_FUNCTION_FAILED;
+	}
+
+	token->db_main->flags &= ~flags_clear;
+	token->db_main->flags |= flags_set;
+
+	return PKCS11_CKR_OK;
+}
+
+enum pkcs11_rc verify_identity_auth(struct ck_token *token,
+				    enum pkcs11_user_type user_type)
+{
+	TEE_Identity identity = { };
+	TEE_Result res = 0;
+
+	if (!(token->db_main->flags &
+	      PKCS11_CKFT_PROTECTED_AUTHENTICATION_PATH))
+		return PKCS11_CKR_PIN_INCORRECT;
+
+	res = TEE_GetPropertyAsIdentity(TEE_PROPSET_CURRENT_CLIENT,
+					"gpd.client.identity", &identity);
+	if (res != TEE_SUCCESS) {
+		EMSG("TEE_GetPropertyAsIdentity: returned %#"PRIx32, res);
+		return PKCS11_CKR_PIN_INVALID;
+	}
+
+	if (user_type == PKCS11_CKU_SO) {
+		if (TEE_MemCompare(&token->db_main->so_identity, &identity,
+				   sizeof(TEE_Identity)))
+			return PKCS11_CKR_PIN_INCORRECT;
+	} else if (user_type == PKCS11_CKU_USER) {
+		if (TEE_MemCompare(&token->db_main->user_identity, &identity,
+				   sizeof(TEE_Identity)))
+			return PKCS11_CKR_PIN_INCORRECT;
+	} else {
+		return PKCS11_CKR_PIN_INCORRECT;
+	}
+
+	return PKCS11_CKR_OK;
+}
+
 /*
  * Release resources relate to persistent database
  */

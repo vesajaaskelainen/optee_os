@@ -63,10 +63,16 @@ struct token_persistent_main {
 	uint32_t flags;
 	uint32_t so_pin_count;
 	uint32_t so_pin_salt;
-	uint8_t so_pin_hash[TEE_MAX_HASH_SIZE];
+	union {
+		uint8_t so_pin_hash[TEE_MAX_HASH_SIZE];
+		TEE_Identity so_identity;
+	};
 	uint32_t user_pin_count;
 	uint32_t user_pin_salt;
-	uint8_t user_pin_hash[TEE_MAX_HASH_SIZE];
+	union {
+		uint8_t user_pin_hash[TEE_MAX_HASH_SIZE];
+		TEE_Identity user_identity;
+	};
 };
 
 /*
@@ -208,6 +214,14 @@ enum pkcs11_rc hash_pin(enum pkcs11_user_type user, const uint8_t *pin,
 enum pkcs11_rc verify_pin(enum pkcs11_user_type user, const uint8_t *pin,
 			  size_t pin_size, uint32_t salt,
 			  const uint8_t hash[TEE_MAX_HASH_SIZE]);
+
+enum pkcs11_rc setup_so_identity_auth_from_client(struct ck_token *token);
+enum pkcs11_rc setup_identity_auth_from_pin(struct ck_token *token,
+					    enum pkcs11_user_type user_type,
+					    const uint8_t *pin,
+					    size_t pin_size);
+enum pkcs11_rc verify_identity_auth(struct ck_token *token,
+				    enum pkcs11_user_type user_type);
 
 /* Token persistent objects */
 enum pkcs11_rc create_object_uuid(struct ck_token *token,
