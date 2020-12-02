@@ -582,6 +582,7 @@ enum pkcs11_rc entry_find_objects_init(struct pkcs11_client *client,
 	case PKCS11_CKO_PUBLIC_KEY:
 	case PKCS11_CKO_PRIVATE_KEY:
 	case PKCS11_CKO_DATA:
+	case PKCS11_CKO_CERTIFICATE:
 		break;
 	default:
 		EMSG("Find object of class %s (%"PRIu32") is not supported",
@@ -1047,7 +1048,7 @@ uint32_t entry_set_attribute_value(struct pkcs11_client *client,
 
 		len = sizeof(*cli_ref) + cli_ref->size;
 
-		if (!attribute_is_settable(cli_ref, obj)) {
+		if (!attribute_is_settable(session, cli_ref, obj)) {
 			rc = PKCS11_CKR_TEMPLATE_INCONSISTENT;
 			goto out;
 		}

@@ -171,7 +171,8 @@ bool object_is_modifiable(struct obj_attrs *head);
 bool attribute_is_exportable(struct pkcs11_attribute_head *req_attr,
 			     struct pkcs11_object *obj);
 
-bool attribute_is_settable(struct pkcs11_attribute_head *req_attr,
+bool attribute_is_settable(struct pkcs11_session *session,
+			   struct pkcs11_attribute_head *req_attr,
 			   struct pkcs11_object *obj);
 
 enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
