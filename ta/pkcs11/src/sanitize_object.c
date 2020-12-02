@@ -313,11 +313,13 @@ enum pkcs11_rc sanitize_client_object(struct obj_attrs **dst, void *src,
 		    pkcs11_attr_is_boolean(cli_ref.id))
 			continue;
 
-		rc = sanitize_indirect_attr(dst, &cli_ref, data);
-		if (rc == PKCS11_CKR_OK)
-			continue;
-		if (rc != PKCS11_RV_NOT_FOUND)
-			return rc;
+		if (pkcs11_attr_has_indirect_attributes(cli_ref.id)) {
+			rc = sanitize_indirect_attr(dst, &cli_ref, data);
+			if (rc == PKCS11_CKR_OK)
+				continue;
+			if (rc != PKCS11_RV_NOT_FOUND)
+				return rc;
+		}
 
 		if (!valid_pkcs11_attribute_id(cli_ref.id, cli_ref.size)) {
 			EMSG("Invalid attribute id %#"PRIx32, cli_ref.id);
