@@ -82,6 +82,34 @@ uint32_t pkcs2tee_algo_rsa_pss(uint32_t *tee_id,
 	if (serialargs_remaining_bytes(&args))
 		return PKCS11_CKR_ARGUMENTS_BAD;
 
+	if (proc_params->id == PKCS11_CKM_RSA_PKCS_PSS) {
+		if (hash == PKCS11_CKM_SHA_1 && mgf == PKCS11_CKG_MGF1_SHA1) {
+			*tee_id = TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA1;
+			return PKCS11_CKR_OK;
+		}
+		if (hash == PKCS11_CKM_SHA224 &&
+		    mgf == PKCS11_CKG_MGF1_SHA224) {
+			*tee_id = TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA224;
+			return PKCS11_CKR_OK;
+		}
+		if (hash == PKCS11_CKM_SHA256 &&
+		    mgf == PKCS11_CKG_MGF1_SHA256) {
+			*tee_id = TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA256;
+			return PKCS11_CKR_OK;
+		}
+		if (hash == PKCS11_CKM_SHA384 &&
+		    mgf == PKCS11_CKG_MGF1_SHA384) {
+			*tee_id = TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA384;
+			return PKCS11_CKR_OK;
+		}
+		if (hash == PKCS11_CKM_SHA512 &&
+		    mgf == PKCS11_CKG_MGF1_SHA512) {
+			*tee_id = TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA512;
+			return PKCS11_CKR_OK;
+		}
+		return PKCS11_CKR_MECHANISM_PARAM_INVALID;
+	}
+
 	switch (*tee_id) {
 	case TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA1:
 		if (hash != PKCS11_CKM_SHA_1 || mgf != PKCS11_CKG_MGF1_SHA1)

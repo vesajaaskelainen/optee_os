@@ -20,6 +20,7 @@ bool processing_is_tee_asymm(uint32_t proc_id)
 	switch (proc_id) {
 	/* RSA flavors */
 	case PKCS11_CKM_RSA_PKCS:
+	case PKCS11_CKM_RSA_PKCS_PSS:
 	case PKCS11_CKM_RSA_PKCS_OAEP:
 	case PKCS11_CKM_SHA1_RSA_PKCS:
 	case PKCS11_CKM_SHA224_RSA_PKCS:
@@ -56,6 +57,7 @@ static uint32_t pkcs2tee_algorithm(uint32_t *tee_id,
 		{ PKCS11_CKM_RSA_PKCS, TEE_ALG_RSAES_PKCS1_V1_5
 				/* TEE_ALG_RSASSA_PKCS1_V1_5 on signatures */ },
 		{ PKCS11_CKM_RSA_PKCS_OAEP, 1 }, /* Need to look into params */
+		{ PKCS11_CKM_RSA_PKCS_PSS, 1 }, /* Need to look into params */
 		{ PKCS11_CKM_SHA1_RSA_PKCS, TEE_ALG_RSASSA_PKCS1_V1_5_SHA1 },
 		{ PKCS11_CKM_SHA224_RSA_PKCS,
 					TEE_ALG_RSASSA_PKCS1_V1_5_SHA224 },
@@ -99,7 +101,6 @@ static uint32_t pkcs2tee_algorithm(uint32_t *tee_id,
 	switch (proc_params->id) {
 	case PKCS11_CKM_RSA_X_509:
 	case PKCS11_CKM_RSA_9796:
-	case PKCS11_CKM_RSA_PKCS_PSS:
 		EMSG("%s not supported by GPD TEE, need an alternative...",
 		     id2str_proc(proc_params->id));
 		break;
@@ -111,6 +112,7 @@ static uint32_t pkcs2tee_algorithm(uint32_t *tee_id,
 		return PKCS11_RV_NOT_IMPLEMENTED;
 
 	switch (proc_params->id) {
+	case PKCS11_CKM_RSA_PKCS_PSS:
 	case PKCS11_CKM_SHA1_RSA_PKCS_PSS:
 	case PKCS11_CKM_SHA224_RSA_PKCS_PSS:
 	case PKCS11_CKM_SHA256_RSA_PKCS_PSS:
