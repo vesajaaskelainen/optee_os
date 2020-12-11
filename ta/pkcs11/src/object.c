@@ -1045,10 +1045,14 @@ uint32_t entry_set_attribute_value(struct pkcs11_client *client,
 	for (; cur < end; cur += len) {
 		struct pkcs11_attribute_head *cli_ref =
 			(struct pkcs11_attribute_head *)cur;
+		struct pkcs11_attribute_head cli_head;
 
-		len = sizeof(*cli_ref) + cli_ref->size;
+		/* Make copy if header so that is aligned properly. */
+		TEE_MemMove(&cli_head, cli_ref, sizeof(cli_head));
 
-		if (!attribute_is_settable(session, cli_ref, obj)) {
+		len = sizeof(*cli_ref) + cli_head.size;
+
+		if (!attribute_is_settable(session, &cli_head, obj)) {
 			rc = PKCS11_CKR_TEMPLATE_INCONSISTENT;
 			goto out;
 		}
@@ -1065,16 +1069,16 @@ uint32_t entry_set_attribute_value(struct pkcs11_client *client,
 	for (; cur < end; cur += len) {
 		struct pkcs11_attribute_head *cli_ref =
 			(struct pkcs11_attribute_head *)cur;
+		struct pkcs11_attribute_head cli_head;
 
-		len = sizeof(*cli_ref) + cli_ref->size;
+		/* Make copy if header so that is aligned properly. */
+		TEE_MemMove(&cli_head, cli_ref, sizeof(cli_head));
 
-		/*
-		 * We assume that if size is 0, pValue was NULL, so we return
-		 * the size of the required buffer for it (3., 4.)
-		 */
-		rc = set_attribute(&obj->attributes, cli_ref->id,
-				   cli_ref->size ? cli_ref->data : NULL,
-				   cli_ref->size);
+		len = sizeof(*cli_ref) + cli_head.size;
+
+		rc = set_attribute(&obj->attributes, cli_head.id,
+				   cli_head.size ? cli_ref->data : NULL,
+				   cli_head.size);
 		if (rc)
 			goto out;
 	}
