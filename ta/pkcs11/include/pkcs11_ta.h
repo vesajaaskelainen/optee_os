@@ -424,7 +424,8 @@ enum pkcs11_ta_cmd {
 	PKCS11_CMD_VERIFY_ONESHOT = 32,
 
 	/*
-	 * PKCS11_CMD_GENERATE_KEY - Generate a symmetric key or domain parameters
+	 * PKCS11_CMD_GENERATE_KEY - Generate a symmetric key or domain
+	 *                           parameters
 	 *
 	 * [in]  memref[0] = [
 	 *              32bit session handle,
