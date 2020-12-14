@@ -435,7 +435,7 @@ enum pkcs11_ta_cmd {
 	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
 	 * [out] memref[2] = 32bit object handle
 	 *
-	 * This command relates to the PKCS#11 API functions C_GenerateKey().
+	 * This command relates to the PKCS#11 API function C_GenerateKey().
 	 */
 	PKCS11_CMD_GENERATE_KEY = 33,
 

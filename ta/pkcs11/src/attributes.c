@@ -70,7 +70,7 @@ static enum pkcs11_rc _remove_attribute(struct obj_attrs **head,
 	cur = (char *)h + sizeof(struct obj_attrs);
 	end = cur + h->attrs_size;
 	for (; cur < end; cur += next_off) {
-		struct pkcs11_attribute_head pkcs11_ref;
+		struct pkcs11_attribute_head pkcs11_ref = { };
 
 		TEE_MemMove(&pkcs11_ref, cur, sizeof(pkcs11_ref));
 		next_off = sizeof(pkcs11_ref) + pkcs11_ref.size;

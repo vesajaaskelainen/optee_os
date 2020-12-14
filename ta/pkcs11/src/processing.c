@@ -263,8 +263,8 @@ enum pkcs11_rc entry_generate_secret(struct pkcs11_client *client,
 	/*
 	 * Now obj_handle (through the related struct pkcs11_object instance)
 	 * owns the serialized buffer that holds the object attributes.
-	 * We reset attrs->buffer to NULL as serializer object is no more
-	 * the attributes buffer owner.
+	 * We reset head to NULL as it is no more the buffer owner and would
+	 * be freed at function out.
 	 */
 	head = NULL;
 

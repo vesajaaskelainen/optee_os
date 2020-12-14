@@ -243,7 +243,7 @@ void mechanism_supported_key_sizes(uint32_t proc_id, uint32_t *min_key_size,
 {
 	switch (proc_id) {
 	case PKCS11_CKM_GENERIC_SECRET_KEY_GEN:
-	/* This mechanism expects the keysize to be returned in bits */
+		/* This mechanism expects the keysize to be returned in bits */
 		*min_key_size = 1;		/* in bits */
 		*max_key_size = 4096;		/* in bits */
 		break;
