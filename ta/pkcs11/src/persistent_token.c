@@ -388,6 +388,12 @@ struct ck_token *init_persistent_db(unsigned int token_id)
 		TEE_MemFill(db_main, 0, sizeof(*db_main));
 		TEE_MemFill(db_main->label, '*', sizeof(db_main->label));
 
+		/*
+		 * Not supported:
+		 *   PKCS11_TOKEN_FULLY_RESTORABLE
+		 * TODO: check these:
+		 *   PKCS11_TOKEN_HAS_CLOCK => related to TEE time secure level
+		 */
 		db_main->flags = PKCS11_CKFT_SO_PIN_TO_BE_CHANGED |
 				 PKCS11_CKFT_USER_PIN_TO_BE_CHANGED |
 				 PKCS11_CKFT_RNG |

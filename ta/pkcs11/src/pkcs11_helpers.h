@@ -35,6 +35,12 @@ enum pkcs11_rc tee2pkcs_error(TEE_Result res);
 bool valid_pkcs11_attribute_id(uint32_t attribute_id, uint32_t size);
 
 /*
+ * Return class attribute byte size if @attribute_id is the ID of a class
+ * attribute or 0 if not.
+ */
+size_t pkcs11_attr_is_class(uint32_t attribute_id);
+
+/*
  * Return type attribute byte size if @attribute_id is the ID of a type
  * attribute or 0 if not.
  */
@@ -63,14 +69,6 @@ bool pkcs2tee_load_attr(TEE_Attribute *tee_ref, uint32_t tee_id,
 			struct pkcs11_object *obj,
 			enum pkcs11_attr_id pkcs11_id);
 
-/* Hash and load TEE operation attributes from a PKCS11 object */
-enum pkcs11_rc pkcs2tee_load_hashed_attr(TEE_Attribute *tee_ref,
-					 uint32_t tee_id,
-					 struct pkcs11_object *obj,
-					 enum pkcs11_attr_id pkcs11_id,
-					 uint32_t tee_algo, void *hash_ptr,
-					 uint32_t *hash_size);
-
 /* Return true if attribute is a boolean, false otherwise */
 static inline bool pkcs11_attr_is_boolean(enum pkcs11_attr_id id)
 {
@@ -81,6 +79,7 @@ static inline bool pkcs11_attr_is_boolean(enum pkcs11_attr_id id)
 /* Id-to-string conversions only for trace support */
 const char *id2str_ta_cmd(uint32_t id);
 const char *id2str_rc(uint32_t id);
+const char *id2str_proc_flag(uint32_t id);
 const char *id2str_slot_flag(uint32_t id);
 const char *id2str_token_flag(uint32_t id);
 const char *id2str_session_flag(uint32_t id);

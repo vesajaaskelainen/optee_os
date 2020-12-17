@@ -3,6 +3,7 @@
  * Copyright (c) 2018-2020, Linaro Limited
  */
 
+#include <assert.h>
 #include <pkcs11_ta.h>
 #include <string.h>
 #include <tee_internal_api.h>
@@ -11,6 +12,7 @@
 #include "attributes.h"
 #include "object.h"
 #include "pkcs11_attributes.h"
+#include "processing.h"
 #include "pkcs11_helpers.h"
 
 static const char __maybe_unused unknown[] = "<unknown-identifier>";
@@ -36,6 +38,7 @@ static const struct attr_size attr_ids[] = {
 	PKCS11_ID_SZ(PKCS11_CKA_KEY_TYPE, 4),
 	PKCS11_ID_SZ(PKCS11_CKA_VALUE, 0),
 	PKCS11_ID_SZ(PKCS11_CKA_VALUE_LEN, 4),
+	PKCS11_ID_SZ(PKCS11_CKA_KEY_GEN_MECHANISM, 4),
 	PKCS11_ID_SZ(PKCS11_CKA_LABEL, 0),
 	PKCS11_ID_SZ(PKCS11_CKA_WRAP_TEMPLATE, 0),
 	PKCS11_ID_SZ(PKCS11_CKA_UNWRAP_TEMPLATE, 0),
@@ -85,6 +88,8 @@ static const struct attr_size attr_ids[] = {
 	PKCS11_ID_SZ(PKCS11_CKA_WRAP_WITH_TRUSTED, 1),
 	/* Specific PKCS11 TA internal attribute ID */
 	PKCS11_ID_SZ(PKCS11_CKA_UNDEFINED_ID, 0),
+	PKCS11_ID_SZ(PKCS11_CKA_EC_POINT_X, 0),
+	PKCS11_ID_SZ(PKCS11_CKA_EC_POINT_Y, 0),
 };
 
 struct any_id {
@@ -169,6 +174,18 @@ static const struct any_id __maybe_unused string_ta_cmd[] = {
 	PKCS11_ID(PKCS11_CMD_VERIFY_FINAL),
 	PKCS11_ID(PKCS11_CMD_SIGN_ONESHOT),
 	PKCS11_ID(PKCS11_CMD_VERIFY_ONESHOT),
+	PKCS11_ID(PKCS11_CMD_COPY_OBJECT),
+	PKCS11_ID(PKCS11_CMD_GET_SESSION_STATE),
+	PKCS11_ID(PKCS11_CMD_SET_SESSION_STATE),
+	PKCS11_ID(PKCS11_CMD_FIND_OBJECTS_INIT),
+	PKCS11_ID(PKCS11_CMD_FIND_OBJECTS),
+	PKCS11_ID(PKCS11_CMD_FIND_OBJECTS_FINAL),
+	PKCS11_ID(PKCS11_CMD_GET_OBJECT_SIZE),
+	PKCS11_ID(PKCS11_CMD_GET_ATTRIBUTE_VALUE),
+	PKCS11_ID(PKCS11_CMD_SET_ATTRIBUTE_VALUE),
+	PKCS11_ID(PKCS11_CMD_GENERATE_KEY),
+	PKCS11_ID(PKCS11_CMD_DERIVE_KEY),
+	PKCS11_ID(PKCS11_CMD_GENERATE_KEY_PAIR),
 };
 
 static const struct any_id __maybe_unused string_slot_flags[] = {
@@ -235,6 +252,8 @@ static const struct any_id __maybe_unused string_rc[] = {
 	PKCS11_ID(PKCS11_CKR_PIN_INVALID),
 	PKCS11_ID(PKCS11_CKR_PIN_LEN_RANGE),
 	PKCS11_ID(PKCS11_CKR_SESSION_EXISTS),
+	PKCS11_ID(PKCS11_CKR_SESSION_CLOSED),
+	PKCS11_ID(PKCS11_CKR_SESSION_COUNT),
 	PKCS11_ID(PKCS11_CKR_SESSION_READ_ONLY),
 	PKCS11_ID(PKCS11_CKR_SESSION_READ_WRITE_SO_EXISTS),
 	PKCS11_ID(PKCS11_CKR_OPERATION_ACTIVE),
@@ -254,9 +273,25 @@ static const struct any_id __maybe_unused string_rc[] = {
 	PKCS11_ID(PKCS11_CKR_USER_PIN_NOT_INITIALIZED),
 	PKCS11_ID(PKCS11_CKR_USER_TOO_MANY_TYPES),
 	PKCS11_ID(PKCS11_CKR_USER_TYPE_INVALID),
-	PKCS11_ID(PKCS11_CKR_KEY_SIZE_RANGE),
-	PKCS11_ID(PKCS11_CKR_SESSION_READ_ONLY_EXISTS),
 	PKCS11_ID(PKCS11_CKR_SIGNATURE_LEN_RANGE),
+	PKCS11_ID(PKCS11_CKR_KEY_SIZE_RANGE),
+	PKCS11_ID(PKCS11_CKR_KEY_TYPE_INCONSISTENT),
+	PKCS11_ID(PKCS11_CKR_KEY_NOT_WRAPPABLE),
+	PKCS11_ID(PKCS11_CKR_KEY_UNEXTRACTABLE),
+	PKCS11_ID(PKCS11_CKR_DATA_INVALID),
+	PKCS11_ID(PKCS11_CKR_DATA_LEN_RANGE),
+	PKCS11_ID(PKCS11_CKR_DEVICE_ERROR),
+	PKCS11_ID(PKCS11_CKR_DEVICE_REMOVED),
+	PKCS11_ID(PKCS11_CKR_ENCRYPTED_DATA_INVALID),
+	PKCS11_ID(PKCS11_CKR_ENCRYPTED_DATA_LEN_RANGE),
+	PKCS11_ID(PKCS11_CKR_CANCEL),
+	PKCS11_ID(PKCS11_CKR_ATTRIBUTE_SENSITIVE),
+	PKCS11_ID(PKCS11_CKR_SAVED_STATE_INVALID),
+	PKCS11_ID(PKCS11_CKR_INFORMATION_SENSITIVE),
+	PKCS11_ID(PKCS11_CKR_STATE_UNSAVEABLE),
+	PKCS11_ID(PKCS11_CKR_PUBLIC_KEY_INVALID),
+	PKCS11_ID(PKCS11_CKR_FUNCTION_REJECTED),
+	PKCS11_ID(PKCS11_CKR_SESSION_READ_ONLY_EXISTS),
 	PKCS11_ID(PKCS11_RV_NOT_FOUND),
 	PKCS11_ID(PKCS11_RV_NOT_IMPLEMENTED),
 };
@@ -294,6 +329,29 @@ static const struct any_id __maybe_unused string_key_type[] = {
  */
 static const struct any_id __maybe_unused string_internal_processing[] = {
 	PKCS11_ID(PKCS11_PROCESSING_IMPORT),
+	PKCS11_ID(PKCS11_PROCESSING_COPY),
+};
+
+static const struct any_id __maybe_unused string_proc_flags[] = {
+	PKCS11_ID(PKCS11_CKFM_HW),
+	PKCS11_ID(PKCS11_CKFM_ENCRYPT),
+	PKCS11_ID(PKCS11_CKFM_DECRYPT),
+	PKCS11_ID(PKCS11_CKFM_DIGEST),
+	PKCS11_ID(PKCS11_CKFM_SIGN),
+	PKCS11_ID(PKCS11_CKFM_SIGN_RECOVER),
+	PKCS11_ID(PKCS11_CKFM_VERIFY),
+	PKCS11_ID(PKCS11_CKFM_VERIFY_RECOVER),
+	PKCS11_ID(PKCS11_CKFM_GENERATE),
+	PKCS11_ID(PKCS11_CKFM_GENERATE_KEY_PAIR),
+	PKCS11_ID(PKCS11_CKFM_WRAP),
+	PKCS11_ID(PKCS11_CKFM_UNWRAP),
+	PKCS11_ID(PKCS11_CKFM_DERIVE),
+	PKCS11_ID(PKCS11_CKFM_EC_F_P),
+	PKCS11_ID(PKCS11_CKFM_EC_F_2M),
+	PKCS11_ID(PKCS11_CKFM_EC_ECPARAMETERS),
+	PKCS11_ID(PKCS11_CKFM_EC_NAMEDCURVE),
+	PKCS11_ID(PKCS11_CKFM_EC_UNCOMPRESS),
+	PKCS11_ID(PKCS11_CKFM_EC_COMPRESS),
 };
 
 static const struct any_id __maybe_unused string_functions[] = {
@@ -302,6 +360,7 @@ static const struct any_id __maybe_unused string_functions[] = {
 	PKCS11_ID(PKCS11_FUNCTION_DECRYPT),
 	PKCS11_ID(PKCS11_FUNCTION_SIGN),
 	PKCS11_ID(PKCS11_FUNCTION_VERIFY),
+	PKCS11_ID(PKCS11_FUNCTION_DERIVE),
 };
 
 /*
@@ -334,6 +393,14 @@ enum pkcs11_rc tee2pkcs_error(TEE_Result res)
 /*
  * Helper functions to analyse PKCS11 identifiers
  */
+
+size_t pkcs11_attr_is_class(uint32_t attribute_id)
+{
+	if (attribute_id == PKCS11_CKA_CLASS)
+		return sizeof(uint32_t);
+	else
+		return 0;
+}
 
 /* Check attribute ID is known and size matches if fixed */
 bool valid_pkcs11_attribute_id(uint32_t id, uint32_t size)
@@ -470,6 +537,28 @@ bool pkcs2tee_load_attr(TEE_Attribute *tee_ref, uint32_t tee_id,
 {
 	void *a_ptr = NULL;
 	uint32_t a_size = 0;
+	uint32_t data32 = 0;
+
+	switch (tee_id) {
+	case TEE_ATTR_ECC_PUBLIC_VALUE_X:
+	case TEE_ATTR_ECC_PUBLIC_VALUE_Y:
+		// FIXME: workaround until we get parse DER data
+		break;
+	case TEE_ATTR_ECC_CURVE:
+		if (get_attribute_ptr(obj->attributes, PKCS11_CKA_EC_PARAMS,
+				      &a_ptr, &a_size) || !a_ptr) {
+			EMSG("Missing EC_PARAMS attribute");
+			return false;
+		}
+
+		data32 = ec_params2tee_curve(a_ptr, a_size);
+
+		TEE_InitValueAttribute(tee_ref, TEE_ATTR_ECC_CURVE, data32, 0);
+		return true;
+
+	default:
+		break;
+	}
 
 	if (get_attribute_ptr(obj->attributes, pkcs11_id, &a_ptr, &a_size))
 		return false;
@@ -477,45 +566,6 @@ bool pkcs2tee_load_attr(TEE_Attribute *tee_ref, uint32_t tee_id,
 	TEE_InitRefAttribute(tee_ref, tee_id, a_ptr, a_size);
 
 	return true;
-}
-
-/*
- * Initialize a TEE attribute with hash of a target PKCS11 TA attribute
- * in an object.
- */
-enum pkcs11_rc pkcs2tee_load_hashed_attr(TEE_Attribute *tee_ref,
-					 uint32_t tee_id,
-					 struct pkcs11_object *obj,
-					 enum pkcs11_attr_id pkcs11_id,
-					 uint32_t tee_algo, void *hash_ptr,
-					 uint32_t *hash_size)
-{
-	TEE_OperationHandle handle = TEE_HANDLE_NULL;
-	void *a_ptr = NULL;
-	uint32_t a_size = 0;
-	enum pkcs11_rc rc = PKCS11_CKR_OK;
-	TEE_Result res = TEE_ERROR_GENERIC;
-
-	rc = get_attribute_ptr(obj->attributes, pkcs11_id, &a_ptr, &a_size);
-	if (rc)
-		return rc;
-
-	res = TEE_AllocateOperation(&handle, tee_algo, TEE_MODE_DIGEST, 0);
-	if (res) {
-		EMSG("TEE_AllocateOperation() failed %#"PRIx32, tee_algo);
-		return tee2pkcs_error(res);
-	}
-
-	res = TEE_DigestDoFinal(handle, a_ptr, a_size, hash_ptr, hash_size);
-	TEE_FreeOperation(handle);
-	if (res) {
-		EMSG("TEE_DigestDoFinal() failed %#"PRIx32, tee_algo);
-		return PKCS11_CKR_FUNCTION_FAILED;
-	}
-
-	TEE_InitRefAttribute(tee_ref, tee_id, hash_ptr, *hash_size);
-
-	return PKCS11_CKR_OK;
 }
 
 /* Easy conversion between PKCS11 TA function of TEE crypto mode */
@@ -551,6 +601,11 @@ const char *id2str_rc(uint32_t id)
 const char *id2str_ta_cmd(uint32_t id)
 {
 	return ID2STR(id, string_ta_cmd, NULL);
+}
+
+const char *id2str_proc_flag(uint32_t id)
+{
+	return ID2STR(id, string_proc_flags, "PKCS11_CKFM_");
 }
 
 const char *id2str_slot_flag(uint32_t id)

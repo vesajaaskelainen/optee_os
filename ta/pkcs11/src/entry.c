@@ -10,6 +10,7 @@
 #include <tee_internal_api_extensions.h>
 #include <util.h>
 
+#include "handle.h"
 #include "object.h"
 #include "pkcs11_helpers.h"
 #include "pkcs11_token.h"
@@ -247,6 +248,11 @@ TEE_Result TA_InvokeCommandEntryPoint(void *tee_session, uint32_t cmd,
 					   PKCS11_FUNCTION_DECRYPT,
 					   PKCS11_FUNC_STEP_FINAL);
 		break;
+
+	case PKCS11_CMD_GENERATE_KEY:
+		rc = entry_generate_secret(client, ptypes, params);
+		break;
+
 	case PKCS11_CMD_SIGN_INIT:
 		rc = entry_processing_init(client, ptypes, params,
 					   PKCS11_FUNCTION_SIGN);
@@ -261,7 +267,7 @@ TEE_Result TA_InvokeCommandEntryPoint(void *tee_session, uint32_t cmd,
 					   PKCS11_FUNC_STEP_ONESHOT);
 		break;
 	case PKCS11_CMD_VERIFY_ONESHOT:
-		rc = entry_processing_step(client, ptypes, params,
+		rc = entry_verify_oneshot(client, ptypes, params, // IN+IN
 					   PKCS11_FUNCTION_VERIFY,
 					   PKCS11_FUNC_STEP_ONESHOT);
 		break;
@@ -285,6 +291,34 @@ TEE_Result TA_InvokeCommandEntryPoint(void *tee_session, uint32_t cmd,
 					   PKCS11_FUNCTION_VERIFY,
 					   PKCS11_FUNC_STEP_FINAL);
 		break;
+
+	case PKCS11_CMD_FIND_OBJECTS_INIT:
+		rc = entry_find_objects_init(client, ptypes, params);
+		break;
+
+	case PKCS11_CMD_FIND_OBJECTS:
+		rc = entry_find_objects(client, ptypes, params);
+		break;
+
+	case PKCS11_CMD_FIND_OBJECTS_FINAL:
+		rc = entry_find_objects_final(client, ptypes, params);
+		break;
+
+	case PKCS11_CMD_GET_ATTRIBUTE_VALUE:
+		rc = entry_get_attribute_value(client, ptypes, params);
+		break;
+	case PKCS11_CMD_GET_OBJECT_SIZE:
+		rc = entry_get_object_size(client, ptypes, params);
+		break;
+
+	case PKCS11_CMD_GENERATE_KEY_PAIR:
+		rc = entry_generate_key_pair(client, ptypes, params);
+		break;
+
+	case PKCS11_CMD_DERIVE_KEY:
+		rc = entry_derive_key(client, ptypes, params);
+		break;
+
 	default:
 		EMSG("Command %#"PRIx32" is not supported", cmd);
 		return TEE_ERROR_NOT_SUPPORTED;

@@ -6,6 +6,7 @@
 #ifndef PKCS11_TA_ATTRIBUTES_H
 #define PKCS11_TA_ATTRIBUTES_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -53,13 +54,37 @@ enum boolprop_attr {
  *
  * @attrs_size:	 byte size of the serialized data
  * @attrs_count: number of items in the blob
+ * @class:       object class id (from CK literature): key, certif, etc...
+ * @type:        object type id, per class, i.e aes or des3 in the key class.
+ * @boolpropl:   32bit bitmask storing boolean properties #0 to #31.
+ * @boolproph:   32bit bitmask storing boolean properties #32 to #64.
  * @attrs:	 then starts the blob binary data
  */
 struct obj_attrs {
 	uint32_t attrs_size;
 	uint32_t attrs_count;
+#ifdef PKCS11_SHEAD_WITH_TYPE
+	uint32_t class;
+	uint32_t type;
+#endif
+#ifdef PKCS11_SHEAD_WITH_BOOLPROPS
+	uint32_t boolpropl;
+	uint32_t boolproph;
+#endif
 	uint8_t attrs[];
 };
+
+#ifdef PKCS11_SHEAD_WITH_BOOLPROPS
+static inline void set_attributes_in_head(struct obj_attrs *head)
+{
+	head->boolproph |= PKCS11_BOOLPROPH_FLAG;
+}
+
+static inline bool head_contains_boolprops(struct obj_attrs *head)
+{
+	return head->boolproph & PKCS11_BOOLPROPH_FLAG;
+}
+#endif
 
 /*
  * init_attributes_head() - Allocate a reference for serialized attributes
@@ -84,6 +109,33 @@ enum pkcs11_rc init_attributes_head(struct obj_attrs **head);
  */
 enum pkcs11_rc add_attribute(struct obj_attrs **head, uint32_t attribute,
 			     void *data, size_t size);
+
+/*
+ * Update serialized attributes to remove an entry. Can relocate the attribute
+ * list buffer. Only 1 instance of the entry is expected (TODO factory with _check)
+ *
+ * Return PKCS11_CKR_OK on success or a PKCS11 return code.
+ */
+enum pkcs11_rc remove_attribute(struct obj_attrs **head, uint32_t attrib);
+
+/*
+ * Update serialized attributes to remove an empty entry. Can relocate the
+ * attribute list buffer. Only 1 instance of the entry is expected.
+ *
+ * Return PKCS11_CKR_OK on success or a PKCS11 return code.
+ */
+enum pkcs11_rc remove_empty_attribute(struct obj_attrs **head, uint32_t attrib);
+
+/*
+ * Update serialized attributes to remove an entry if found. Can relocate the
+ * attribute list buffer. If attribute ID is find several times, remove all
+ * of them.
+ *
+ * Return PKCS11_CKR_OK on success if attribute(s) is/are found,
+ * PKCS11_RV_NOT_FOUND if attribute is not found or a PKCS11 error code.
+ */
+enum pkcs11_rc remove_attribute_check(struct obj_attrs **head,
+				      uint32_t attribute, size_t max_check);
 
 /*
  * get_attribute_ptrs() - Get pointers to attributes with a given ID
@@ -172,6 +224,34 @@ static inline enum pkcs11_rc get_u32_attribute(struct obj_attrs *head,
 }
 
 /*
+ * Return true all attributes from the reference are found and match value
+ * in the candidate attribute list.
+ *
+ * Return PKCS11_CKR_OK on success, or a PKCS11 return code.
+ */
+bool attributes_match_reference(struct obj_attrs *ref,
+				struct obj_attrs *candidate);
+
+/*
+ * Some helpers
+ */
+static inline size_t attributes_size(struct obj_attrs *head)
+{
+	return sizeof(struct obj_attrs) + head->attrs_size;
+}
+
+#ifdef PKCS11_SHEAD_WITH_TYPE
+static inline enum pkcs11_class_id get_class(struct obj_attrs *head)
+{
+	return head->class;
+}
+
+static inline enum pkcs11_key_type get_key_type(struct obj_attrs *head)
+{
+	return head->type;
+}
+#else
+/*
  * get_class() - Get class ID of an object
  * @head:	Pointer to serialized attributes
  *
@@ -206,6 +286,7 @@ static inline enum pkcs11_key_type get_key_type(struct obj_attrs *head)
 
 	return type;
 }
+#endif
 
 /*
  * get_mechanism_type() - Get the mechanism type of an object

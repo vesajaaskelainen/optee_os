@@ -131,6 +131,10 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 enum pkcs11_rc check_created_attrs_against_token(struct pkcs11_session *session,
 						 struct obj_attrs *head);
 
+enum pkcs11_rc check_created_attrs_against_parent_key(uint32_t proc_id,
+						      struct obj_attrs *parent,
+						      struct obj_attrs *head);
+
 enum pkcs11_rc check_created_attrs_against_processing(uint32_t proc_id,
 						      struct obj_attrs *head);
 
@@ -158,5 +162,13 @@ check_mechanism_against_processing(struct pkcs11_session *session,
 				   enum pkcs11_mechanism_id mechanism_type,
 				   enum processing_func function,
 				   enum processing_step step);
+
+bool object_is_private(struct obj_attrs *head);
+
+bool attribute_is_exportable(struct pkcs11_attribute_head *req_attr,
+			     struct pkcs11_object *obj);
+
+enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
+					struct obj_attrs **attrs2);
 
 #endif /*PKCS11_TA_PKCS11_ATTRIBUTES_H*/

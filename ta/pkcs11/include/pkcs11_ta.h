@@ -6,6 +6,7 @@
 #ifndef PKCS11_TA_H
 #define PKCS11_TA_H
 
+#include <sys/types.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -423,6 +424,175 @@ enum pkcs11_ta_cmd {
 	 */
 	PKCS11_CMD_VERIFY_ONESHOT = 32,
 
+	/*
+	 * PKCS11_CMD_COPY_OBJECT - Duplicate an object possibly with new attributes
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              32bit object handle,
+	 *              (struct pkcs11_object_head)attribs + attributes data,
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = 32bit object handle
+	 *
+	 * This command relates to the PKCS#11 API function C_CopyObject().
+	 */
+	PKCS11_CMD_COPY_OBJECT = 119,
+
+	/*
+	 * PKCS11_CMD_GET_SESSION_STATE - Retrieve the session state for later restore
+	 *
+	 * [in]  memref[0] = 32bit session handle
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = byte array containing session state binary blob
+	 *
+	 * This command relates to the PKCS#11 API function C_GetOperationState().
+	 */
+	PKCS11_CMD_GET_SESSION_STATE = 116,
+
+	/*
+	 * PKCS11_CMD_SET_SESSION_STATE - Retrieve the session state for later restore
+	 *
+	 * [in]  memref[0] = 32bit session handle
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [in]  memref[1] = byte array containing session state binary blob
+	 *
+	 * This command relates to the PKCS#11 API function C_SetOperationState().
+	 */
+	PKCS11_CMD_SET_SESSION_STATE = 117,
+
+	/*
+	 * PKCS11_CMD_FIND_OBJECTS_INIT - Initialize an object search
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              (struct pkcs11_object_head)attribs + attributes data
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 *
+	 * This command relates to the PKCS#11 API function C_FindOjectsInit().
+	 */
+	PKCS11_CMD_FIND_OBJECTS_INIT = 121,
+
+	/*
+	 * PKCS11_CMD_FIND_OBJECTS - Get handles of matching objects
+	 *
+	 * [in]  memref[0] = 32bit session handle
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = 32bit array object_handle_array[N]
+	 *
+	 * This command relates to the PKCS#11 API function C_FindOjects().
+	 * The size of object_handle_array depends on the size of the output buffer
+	 * provided by the client.
+	 */
+	PKCS11_CMD_FIND_OBJECTS = 122,
+
+	/*
+	 * PKCS11_CMD_FIND_OBJECTS_FINAL - Finalize current objects search
+	 *
+	 * [in]  memref[0] = 32bit session handle
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 *
+	 * This command relates to the PKCS#11 API function C_FindOjectsFinal().
+	 */
+	PKCS11_CMD_FIND_OBJECTS_FINAL = 123,
+
+	/*
+	 * PKCS11_CMD_GET_OBJECT_SIZE - Get byte size used by object in the TEE
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              32bit object handle
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = 32bit object_byte_size
+	 *
+	 * This command relates to the PKCS#11 API function C_GetObjectSize().
+	 */
+	PKCS11_CMD_GET_OBJECT_SIZE = 124,
+
+	/*
+	 * PKCS11_CMD_GET_ATTRIBUTE_VALUE - Get the value of object attribute(s)
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              32bit object handle,
+	 *              (struct pkcs11_object_head)attribs + attributes data
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = (struct pkcs11_object_head)attribs + attributes data
+	 *
+	 * This command relates to the PKCS#11 API function C_GetAttributeValue.
+	 * Caller provides an attribute template as 3rd argument in memref[0]
+	 * (referred here as attribs + attributes data). Upon successful completion,
+	 * the TA returns the provided template filled with expected data through
+	 * output argument memref[2] (referred here again as attribs + attributes data).
+	 */
+	PKCS11_CMD_GET_ATTRIBUTE_VALUE = 125,
+
+	/*
+	 * PKCS11_CMD_SET_ATTRIBUTE_VALUE - Set the value for object attribute(s)
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              32bit object handle,
+	 *              (struct pkcs11_object_head)attribs + attributes data
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 *
+	 * This command relates to the PKCS#11 API function C_SetAttributeValue().
+	 */
+	PKCS11_CMD_SET_ATTRIBUTE_VALUE = 126,
+
+	/*
+	 * PKCS11_CMD_GENERATE_KEY - Generate a symmetric key or domain parameters
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              (struct pkcs11_attribute_head)mechanism + mecha params,
+	 *              (struct pkcs11_object_head)attribs + attributes data
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = 32bit object handle
+	 *
+	 * This command relates to the PKCS#11 API functions C_GenerateKey().
+	 */
+	PKCS11_CMD_GENERATE_KEY = 127,
+
+	/*
+	 * PKCS11_CMD_DERIVE_KEY - Derive a key from already provisioned parent key
+	 *
+	 * [in]	 memref[0] = [
+	 *              32bit session handle,
+	 *              (struct pkcs11_attribute_head)mechanism + mecha params,
+	 *              32bit key handle,
+	 *              (struct pkcs11_object_head)attribs + attributes data
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = 32bit object handle
+	 *
+	 * This command relates to the PKCS#11 API functions C_DeriveKey().
+	 */
+	PKCS11_CMD_DERIVE_KEY = 144,
+
+	/*
+	 * PKCS11_CMD_GENERATE_KEY_PAIR - Generate an asymmetric key pair
+	 *
+	 * [in]  memref[0] = [
+	 *              32bit session handle,
+	 *              (struct pkcs11_attribute_head)mechanism + mecha params,
+	 *              (struct pkcs11_object_head)pubkey_attribs + attributes,
+	 *              (struct pkcs11_object_head)privkeyattribs + attributes,
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = [
+	 *              32bit public key handle,
+	 *              32bit prive key handle
+	 *	 ]
+	 *
+	 * This command relates to the PKCS#11 API functions C_GenerateKeyPair().
+	 */
+	PKCS11_CMD_GENERATE_KEY_PAIR = 145,
 };
 
 /*
@@ -794,6 +964,9 @@ enum pkcs11_attr_id {
 	 * CKF_ARRAY_ATTRIBUTE = 0x40000000.
 	 */
 	PKCS11_CKA_ALLOWED_MECHANISMS		= 0x40000600,
+	/* Temporary storage until DER/BigInt conversion is available */
+	PKCS11_CKA_EC_POINT_X			= 0x80001000,
+	PKCS11_CKA_EC_POINT_Y			= 0x80001001,
 	/* Vendor extension: reserved for undefined ID (~0U) */
 	PKCS11_CKA_UNDEFINED_ID			= PKCS11_UNDEFINED_ID,
 };
@@ -844,25 +1017,284 @@ enum pkcs11_key_type {
  * Note that this will be extended as needed.
  */
 enum pkcs11_mechanism_id {
+	PKCS11_CKM_RSA_PKCS_KEY_PAIR_GEN	= 0x00000,
+	PKCS11_CKM_RSA_PKCS			= 0x00001,
+	PKCS11_CKM_RSA_9796			= 0x00002,
+	PKCS11_CKM_RSA_X_509			= 0x00003,
+	PKCS11_CKM_SHA1_RSA_PKCS		= 0x00006,
+	PKCS11_CKM_RSA_PKCS_OAEP		= 0x00009,
+	PKCS11_CKM_RSA_PKCS_PSS			= 0x0000d,
+	PKCS11_CKM_SHA1_RSA_PKCS_PSS		= 0x0000e,
+	PKCS11_CKM_DH_PKCS_KEY_PAIR_GEN		= 0x00020,
+	PKCS11_CKM_DH_PKCS_DERIVE		= 0x00021,
+	PKCS11_CKM_SHA256_RSA_PKCS		= 0x00040,
+	PKCS11_CKM_SHA384_RSA_PKCS		= 0x00041,
+	PKCS11_CKM_SHA512_RSA_PKCS		= 0x00042,
+	PKCS11_CKM_SHA256_RSA_PKCS_PSS		= 0x00043,
+	PKCS11_CKM_SHA384_RSA_PKCS_PSS		= 0x00044,
+	PKCS11_CKM_SHA512_RSA_PKCS_PSS		= 0x00045,
+	PKCS11_CKM_SHA224_RSA_PKCS		= 0x00046,
+	PKCS11_CKM_SHA224_RSA_PKCS_PSS		= 0x00047,
+	PKCS11_CKM_SHA512_224			= 0x00048,
+	PKCS11_CKM_SHA512_224_HMAC		= 0x00049,
+	PKCS11_CKM_SHA512_224_HMAC_GENERAL	= 0x0004a,
+	PKCS11_CKM_SHA512_224_KEY_DERIVATION	= 0x0004b,
+	PKCS11_CKM_SHA512_256			= 0x0004c,
+	PKCS11_CKM_SHA512_256_HMAC		= 0x0004d,
+	PKCS11_CKM_SHA512_256_HMAC_GENERAL	= 0x0004e,
+	PKCS11_CKM_SHA512_256_KEY_DERIVATION	= 0x0004f,
+	PKCS11_CKM_DES3_ECB			= 0x00132,
+	PKCS11_CKM_DES3_CBC			= 0x00133,
+	PKCS11_CKM_DES3_MAC			= 0x00134,
+	PKCS11_CKM_DES3_MAC_GENERAL		= 0x00135,
+	PKCS11_CKM_DES3_CBC_PAD			= 0x00136,
+	PKCS11_CKM_DES3_CMAC_GENERAL		= 0x00137,
+	PKCS11_CKM_DES3_CMAC			= 0x00138,
+	PKCS11_CKM_MD5				= 0x00210,
 	PKCS11_CKM_MD5_HMAC			= 0x00211,
+	PKCS11_CKM_MD5_HMAC_GENERAL		= 0x00212,
+	PKCS11_CKM_SHA_1			= 0x00220,
 	PKCS11_CKM_SHA_1_HMAC			= 0x00221,
+	PKCS11_CKM_SHA_1_HMAC_GENERAL		= 0x00222,
+	PKCS11_CKM_SHA256			= 0x00250,
 	PKCS11_CKM_SHA256_HMAC			= 0x00251,
+	PKCS11_CKM_SHA256_HMAC_GENERAL		= 0x00252,
+	PKCS11_CKM_SHA224			= 0x00255,
 	PKCS11_CKM_SHA224_HMAC			= 0x00256,
+	PKCS11_CKM_SHA224_HMAC_GENERAL		= 0x00257,
+	PKCS11_CKM_SHA384			= 0x00260,
 	PKCS11_CKM_SHA384_HMAC			= 0x00261,
+	PKCS11_CKM_SHA384_HMAC_GENERAL		= 0x00262,
+	PKCS11_CKM_SHA512			= 0x00270,
 	PKCS11_CKM_SHA512_HMAC			= 0x00271,
+	PKCS11_CKM_SHA512_HMAC_GENERAL		= 0x00272,
+	PKCS11_CKM_HOTP_KEY_GEN			= 0x00290,
+	PKCS11_CKM_HOTP				= 0x00291,
+	PKCS11_CKM_GENERIC_SECRET_KEY_GEN	= 0x00350,
+	PKCS11_CKM_MD5_KEY_DERIVATION		= 0x00390,
+	PKCS11_CKM_MD2_KEY_DERIVATION		= 0x00391,
+	PKCS11_CKM_SHA1_KEY_DERIVATION		= 0x00392,
+	PKCS11_CKM_SHA256_KEY_DERIVATION	= 0x00393,
+	PKCS11_CKM_SHA384_KEY_DERIVATION	= 0x00394,
+	PKCS11_CKM_SHA512_KEY_DERIVATION	= 0x00395,
+	PKCS11_CKM_SHA224_KEY_DERIVATION	= 0x00396,
+	PKCS11_CKM_EC_KEY_PAIR_GEN		= 0x01040,
+	PKCS11_CKM_ECDSA			= 0x01041,
+	PKCS11_CKM_ECDSA_SHA1			= 0x01042,
+	PKCS11_CKM_ECDSA_SHA224			= 0x01043,
+	PKCS11_CKM_ECDSA_SHA256			= 0x01044,
+	PKCS11_CKM_ECDSA_SHA384			= 0x01045,
+	PKCS11_CKM_ECDSA_SHA512			= 0x01046,
+	PKCS11_CKM_ECDH1_DERIVE			= 0x01050,
+	PKCS11_CKM_ECDH1_COFACTOR_DERIVE	= 0x01051,
+	PKCS11_CKM_ECMQV_DERIVE			= 0x01052,
+	PKCS11_CKM_ECDH_AES_KEY_WRAP		= 0x01053,
+	PKCS11_CKM_RSA_AES_KEY_WRAP		= 0x01054,
 	PKCS11_CKM_AES_KEY_GEN			= 0x01080,
 	PKCS11_CKM_AES_ECB			= 0x01081,
 	PKCS11_CKM_AES_CBC			= 0x01082,
+	PKCS11_CKM_AES_MAC			= 0x01083,
+	PKCS11_CKM_AES_MAC_GENERAL		= 0x01084,
 	PKCS11_CKM_AES_CBC_PAD			= 0x01085,
 	PKCS11_CKM_AES_CTR			= 0x01086,
+	PKCS11_CKM_AES_GCM			= 0x01087,
+	PKCS11_CKM_AES_CCM			= 0x01088,
 	PKCS11_CKM_AES_CTS			= 0x01089,
+	PKCS11_CKM_AES_CMAC			= 0x0108a,
+	PKCS11_CKM_AES_CMAC_GENERAL		= 0x0108b,
+	PKCS11_CKM_AES_XCBC_MAC			= 0x0108c,
+	PKCS11_CKM_AES_XCBC_MAC_96		= 0x0108d,
+	PKCS11_CKM_AES_GMAC			= 0x0108e,
+	PKCS11_CKM_DES3_ECB_ENCRYPT_DATA	= 0x01102,
+	PKCS11_CKM_DES3_CBC_ENCRYPT_DATA	= 0x01103,
 	PKCS11_CKM_AES_ECB_ENCRYPT_DATA		= 0x01104,
 	PKCS11_CKM_AES_CBC_ENCRYPT_DATA		= 0x01105,
+	PKCS11_CKM_AES_KEY_WRAP			= 0x02109,
+	PKCS11_CKM_AES_KEY_WRAP_PAD		= 0x0210a,
 	/*
 	 * Vendor extensions below.
 	 * PKCS11 added IDs for operation not related to a CK mechanism ID
 	 */
 	PKCS11_PROCESSING_IMPORT		= 0x80000000,
+	PKCS11_PROCESSING_COPY			= 0x80000001,
 	PKCS11_CKM_UNDEFINED_ID			= PKCS11_UNDEFINED_ID,
 };
+
+/*
+ * PKCS11_CKD_<x> reflects CryptoKi client API key diff function IDs CKD_<x>.
+ */
+enum pkcs11_keydiff_id {
+	PKCS11_CKD_NULL				= 0x0001,
+	PKCS11_CKD_SHA1_KDF			= 0x0002,
+	PKCS11_CKD_SHA1_KDF_ASN1		= 0x0003,
+	PKCS11_CKD_SHA1_KDF_CONCATENATE		= 0x0004,
+	PKCS11_CKD_SHA224_KDF			= 0x0005,
+	PKCS11_CKD_SHA256_KDF			= 0x0006,
+	PKCS11_CKD_SHA384_KDF			= 0x0007,
+	PKCS11_CKD_SHA512_KDF			= 0x0008,
+	PKCS11_CKD_CPDIVERSIFY_KDF		= 0x0009,
+	/* Vendor extension: reserved for undefined ID (~0U) */
+	PKCS11_CKD_UNDEFINED_ID			= PKCS11_UNDEFINED_ID,
+};
+
+/*
+ * Valid values MG function identifiers
+ * PKCS11_CKG_<x> reflects CryptoKi client API MG function IDs CKG_<x>.
+ */
+enum pkcs11_mgf_id {
+	PKCS11_CKG_MGF1_SHA1			= 0x0001,
+	PKCS11_CKG_MGF1_SHA224			= 0x0005,
+	PKCS11_CKG_MGF1_SHA256			= 0x0002,
+	PKCS11_CKG_MGF1_SHA384			= 0x0003,
+	PKCS11_CKG_MGF1_SHA512			= 0x0004,
+	/* Vendor extension: reserved for undefined ID (~0U) */
+	PKCS11_CKG_UNDEFINED_ID			= PKCS11_UNDEFINED_ID,
+};
+
+/*
+ * Valid values for RSA PKCS/OAEP source type identifier
+ * PKCS11_CKZ_<x> reflects CryptoKi client API source type IDs CKZ_<x>.
+ */
+#define PKCS11_CKZ_DATA_SPECIFIED		0x0001
+
+/*
+ * Processing parameters
+ *
+ * These can hardly be described by ANSI-C structures since the byte size of
+ * some fields of the structure are specified by a previous field in the
+ * structure. Therefore the format of the parameter binary data for each
+ * supported processing is defined here from this comment rather than using
+ * C structures.
+ *
+ * Processing parameters are used as arguments to C_EncryptInit and friends
+ * using struct pkcs11_attribute_head format where field 'type' is the
+ * PKCS11 mechanism ID and field 'size' is the mechanism parameters byte size.
+ * Below is shown the head structure struct pkcs11_attribute_head fields and
+ * the trailing data that are the effective parameters binary blob for the
+ * target processing/mechanism.
+ *
+ * AES and generic secret generation
+ *   head:	32bit: type = PKCS11_CKM_AES_KEY_GEN
+ *			   or PKCS11_CKM_GENERIC_SECRET_KEY_GEN
+ *		32bit: size = 0
+ *
+ * AES ECB
+ *   head:	32bit: type = PKCS11_CKM_AES_ECB
+ *		32bit: params byte size = 0
+ *
+ * AES CBC, CBC_PAD and CTS
+ *   head:	32bit: type = PKCS11_CKM_AES_CBC
+ *			  or PKCS11_CKM_AES_CBC_PAD
+ *			  or PKCS11_CKM_AES_CTS
+ *		32bit: params byte size = 16
+ *  params:	16byte: IV
+ *
+ * AES CTR, params relates to struct CK_AES_CTR_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_AES_CTR
+ *		32bit: params byte size = 20
+ *  params:	32bit: counter bit increment
+ *		16byte: IV
+ *
+ * AES GCM, params relates to struct CK_AES_GCM_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_AES_GCM
+ *		32bit: params byte size
+ *  params:	32bit: IV_byte_size
+ *		byte array: IV (IV_byte_size bytes)
+ *		32bit: AAD_byte_size
+ *		byte array: AAD data (AAD_byte_size bytes)
+ *		32bit: tag bit size
+ *
+ * AES CCM, params relates to struct CK_AES_CCM_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_AES_CCM
+ *		32bit: params byte size
+ *  params:	32bit: data_byte_size
+ *		32bit: nonce_byte_size
+ *		byte array: nonce data (nonce_byte_size bytes)
+ *		32bit: AAD_byte_size
+ *		byte array: AAD data (AAD_byte_size bytes)
+ *		32bit: MAC byte size
+ *
+ * AES GMAC
+ *   head:	32bit: type = PKCS11_CKM_AES_GMAC
+ *		32bit: params byte size = 12
+ *  params:	12byte: IV
+ *
+ * AES CMAC with general length, params relates to struct CK_MAC_GENERAL_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_AES_CMAC_GENERAL
+ *		32bit: params byte size = 12
+ *  params:	32bit: byte size of the output CMAC data
+ *
+ * AES CMAC fixed size (16byte CMAC)
+ *   head:	32bit: type = PKCS11_CKM_AES_CMAC_GENERAL
+ *		32bit: size = 0
+ *
+ * AES derive by ECB, params relates to struct CK_KEY_DERIVATION_STRING_DATA.
+ *   head:	32bit: type = PKCS11_CKM_AES_ECB_ENCRYPT_DATA
+ *		32bit: params byte size
+ *  params:	32bit: byte size of the data to encrypt
+ *		byte array: data to encrypt
+ *
+ * AES derive by CBC, params relates to struct CK_AES_CBC_ENCRYPT_DATA_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_AES_CBC_ENCRYPT_DATA
+ *		32bit: params byte size
+ *  params:	16byte: IV
+ *		32bit: byte size of the data to encrypt
+ *		byte array: data to encrypt
+ *
+ * AES and generic secret generation
+ *   head:	32bit: type = PKCS11_CKM_AES_KEY_GEN
+ *			   or PKCS11_CKM_GENERIC_SECRET_KEY_GEN
+ *		32bit: size = 0
+ *
+ * ECDH, params relates to struct CK_ECDH1_DERIVE_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_ECDH1_DERIVE
+ *			   or PKCS11_CKM_ECDH1_COFACTOR_DERIVE
+ *		32bit: params byte size
+ *  params:	32bit: key derivation function (PKCS11_CKD_xxx)
+ *		32bit: byte size of the shared data
+ *		byte array: shared data
+ *		32bit: byte: size of the public data
+ *		byte array: public data
+ *
+ * AES key wrap by ECDH, params relates to struct CK_ECDH_AES_KEY_WRAP_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_ECDH_AES_KEY_WRAP
+ *		32bit: params byte size
+ *  params:	32bit: bit size of the AES key
+ *		32bit: key derivation function (PKCS11_CKD_xxx)
+ *		32bit: byte size of the shared data
+ *		byte array: shared data
+ *
+ * RSA_PKCS (pre-hashed payload)
+ *   head:	32bit: type = PKCS11_CKM_RSA_PKCS
+ *		32bit: size = 0
+ *
+ * RSA PKCS OAEP, params relates to struct CK_RSA_PKCS_OAEP_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_RSA_PKCS_OAEP
+ *		32bit: params byte size
+ *  params:	32bit: hash algorithm identifier (PKCS11_CK_M_xxx)
+ *		32bit: PKCS11_CK_RSA_PKCS_MGF_TYPE
+ *		32bit: PKCS11_CK_RSA_PKCS_OAEP_SOURCE_TYPE
+ *		32bit: byte size of the source data
+ *		byte array: source data
+ *
+ * RSA PKCS PSS, params relates to struct CK_RSA_PKCS_PSS_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_RSA_PKCS_PSS
+ *			   or PKCS11_CKM_SHA256_RSA_PKCS_PSS
+ *			   or PKCS11_CKM_SHA384_RSA_PKCS_PSS
+ *			   or PKCS11_CKM_SHA512_RSA_PKCS_PSS
+ *		32bit: params byte size
+ *  params:	32bit: hash algorithm identifier (PKCS11_CK_M_xxx)
+ *		32bit: PKCS11_CK_RSA_PKCS_MGF_TYPE
+ *		32bit: byte size of the salt in the PSS encoding
+ *
+ * AES key wrapping by RSA, params relates to struct CK_RSA_AES_KEY_WRAP_PARAMS.
+ *   head:	32bit: type = PKCS11_CKM_RSA_AES_KEY_WRAP
+ *		32bit: params byte size
+ *  params:	32bit: bit size of the AES key
+ *		32bit: hash algorithm identifier (PKCS11_CK_M_xxx)
+ *		32bit: PKCS11_CK_RSA_PKCS_MGF_TYPE
+ *		32bit: PKCS11_CK_RSA_PKCS_OAEP_SOURCE_TYPE
+ *		32bit: byte size of the source data
+ *		byte array: source data
+ */
 #endif /*PKCS11_TA_H*/

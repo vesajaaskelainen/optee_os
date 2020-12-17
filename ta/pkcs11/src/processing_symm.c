@@ -24,18 +24,23 @@ bool processing_is_tee_symm(enum pkcs11_mechanism_id proc_id)
 {
 	switch (proc_id) {
 	/* Authentication */
+	case PKCS11_CKM_AES_CMAC_GENERAL:
+	case PKCS11_CKM_AES_CMAC:
 	case PKCS11_CKM_MD5_HMAC:
 	case PKCS11_CKM_SHA_1_HMAC:
 	case PKCS11_CKM_SHA224_HMAC:
 	case PKCS11_CKM_SHA256_HMAC:
 	case PKCS11_CKM_SHA384_HMAC:
 	case PKCS11_CKM_SHA512_HMAC:
+	case PKCS11_CKM_AES_XCBC_MAC:
 	/* Cipherering */
 	case PKCS11_CKM_AES_ECB:
 	case PKCS11_CKM_AES_CBC:
 	case PKCS11_CKM_AES_CBC_PAD:
 	case PKCS11_CKM_AES_CTS:
 	case PKCS11_CKM_AES_CTR:
+	case PKCS11_CKM_AES_CCM:
+	case PKCS11_CKM_AES_GCM:
 		return true;
 	default:
 		return false;
@@ -55,6 +60,11 @@ pkcs2tee_algorithm(uint32_t *tee_id, struct pkcs11_attribute_head *proc_params)
 		{ PKCS11_CKM_AES_CBC_PAD, TEE_ALG_AES_CBC_NOPAD },
 		{ PKCS11_CKM_AES_CTR, TEE_ALG_AES_CTR },
 		{ PKCS11_CKM_AES_CTS, TEE_ALG_AES_CTS },
+		{ PKCS11_CKM_AES_CCM, TEE_ALG_AES_CCM },
+		{ PKCS11_CKM_AES_GCM, TEE_ALG_AES_GCM },
+		{ PKCS11_CKM_AES_CMAC, TEE_ALG_AES_CMAC },
+		{ PKCS11_CKM_AES_CMAC_GENERAL, TEE_ALG_AES_CMAC },
+		{ PKCS11_CKM_AES_XCBC_MAC, TEE_ALG_AES_CBC_MAC_NOPAD },
 		/* HMAC flavors */
 		{ PKCS11_CKM_MD5_HMAC, TEE_ALG_HMAC_MD5 },
 		{ PKCS11_CKM_SHA_1_HMAC, TEE_ALG_HMAC_SHA1 },
@@ -106,58 +116,6 @@ static enum pkcs11_rc pkcs2tee_key_type(uint32_t *tee_type,
 	return PKCS11_RV_NOT_FOUND;
 }
 
-static enum pkcs11_rc pkcsmech2tee_key_type(uint32_t *tee_type,
-					    enum pkcs11_mechanism_id mech_id)
-{
-	static const struct {
-		enum pkcs11_mechanism_id mech;
-		uint32_t tee_id;
-	} pkcs2tee_key_type[] = {
-		{ PKCS11_CKM_MD5_HMAC, TEE_TYPE_HMAC_MD5 },
-		{ PKCS11_CKM_SHA_1_HMAC, TEE_TYPE_HMAC_SHA1 },
-		{ PKCS11_CKM_SHA224_HMAC, TEE_TYPE_HMAC_SHA224 },
-		{ PKCS11_CKM_SHA256_HMAC, TEE_TYPE_HMAC_SHA256 },
-		{ PKCS11_CKM_SHA384_HMAC, TEE_TYPE_HMAC_SHA384 },
-		{ PKCS11_CKM_SHA512_HMAC, TEE_TYPE_HMAC_SHA512 },
-	};
-	size_t n = 0;
-
-	for (n = 0; n < ARRAY_SIZE(pkcs2tee_key_type); n++) {
-		if (pkcs2tee_key_type[n].mech == mech_id) {
-			*tee_type = pkcs2tee_key_type[n].tee_id;
-			return PKCS11_CKR_OK;
-		}
-	}
-
-	return PKCS11_RV_NOT_FOUND;
-}
-
-static enum pkcs11_rc hmac_to_tee_hash(uint32_t *algo,
-				       enum pkcs11_mechanism_id mech_id)
-{
-	static const struct {
-		enum pkcs11_mechanism_id mech;
-		uint32_t tee_id;
-	} hmac_hash[] = {
-		{ PKCS11_CKM_MD5_HMAC, TEE_ALG_MD5 },
-		{ PKCS11_CKM_SHA_1_HMAC, TEE_ALG_SHA1 },
-		{ PKCS11_CKM_SHA224_HMAC, TEE_ALG_SHA224 },
-		{ PKCS11_CKM_SHA256_HMAC, TEE_ALG_SHA256 },
-		{ PKCS11_CKM_SHA384_HMAC, TEE_ALG_SHA384 },
-		{ PKCS11_CKM_SHA512_HMAC, TEE_ALG_SHA512 },
-	};
-	size_t n = 0;
-
-	for (n = 0; n < ARRAY_SIZE(hmac_hash); n++) {
-		if (hmac_hash[n].mech == mech_id) {
-			*algo = hmac_hash[n].tee_id;
-			return PKCS11_CKR_OK;
-		}
-	}
-
-	return PKCS11_RV_NOT_FOUND;
-}
-
 static enum pkcs11_rc
 allocate_tee_operation(struct pkcs11_session *session,
 		       enum processing_func function,
@@ -165,11 +123,8 @@ allocate_tee_operation(struct pkcs11_session *session,
 		       struct pkcs11_object *obj)
 {
 	uint32_t size = (uint32_t)get_object_key_bit_size(obj);
-	uint32_t key_size = size / 8;
 	uint32_t algo = 0;
 	uint32_t mode = 0;
-	uint32_t max_key_size = 0;
-	uint32_t min_key_size = 0;
 	TEE_Result res = TEE_ERROR_GENERIC;
 
 	assert(session->processing->tee_op_handle == TEE_HANDLE_NULL);
@@ -179,30 +134,15 @@ allocate_tee_operation(struct pkcs11_session *session,
 
 	/* Sign/Verify with AES or generic key relate to TEE MAC operation */
 	switch (params->id) {
+	case PKCS11_CKM_AES_CMAC_GENERAL:
+	case PKCS11_CKM_AES_CMAC:
 	case PKCS11_CKM_MD5_HMAC:
 	case PKCS11_CKM_SHA_1_HMAC:
 	case PKCS11_CKM_SHA224_HMAC:
 	case PKCS11_CKM_SHA256_HMAC:
 	case PKCS11_CKM_SHA384_HMAC:
 	case PKCS11_CKM_SHA512_HMAC:
-		mechanism_supported_key_sizes(params->id,
-					      &min_key_size,
-					      &max_key_size);
-		if (key_size < min_key_size)
-			return PKCS11_CKR_KEY_SIZE_RANGE;
-
-		/*
-		 * If size of generic key is greater than the size
-		 * supported by TEE API, this is not considered an
-		 * error. When loading TEE key, we will hash the key
-		 * to generate the appropriate key for HMAC operation.
-		 * This key size will not be greater than the
-		 * max_key_size. So we can use max_key_size for
-		 * TEE_AllocateOperation().
-		 */
-		if (key_size > max_key_size)
-			size = max_key_size * 8;
-
+	case PKCS11_CKM_AES_XCBC_MAC:
 		mode = TEE_MODE_MAC;
 		break;
 	default:
@@ -222,119 +162,33 @@ allocate_tee_operation(struct pkcs11_session *session,
 	return tee2pkcs_error(res);
 }
 
-static enum pkcs11_rc hash_secret_helper(enum pkcs11_mechanism_id mech_id,
-					 struct pkcs11_object *obj,
-					 TEE_Attribute *tee_attr,
-					 void **ctx,
-					 size_t *object_size_bits)
-{
-	uint32_t algo = 0;
-	void *hash_ptr = NULL;
-	uint32_t hash_size = 0;
-	enum pkcs11_rc rc = PKCS11_CKR_OK;
-
-	rc = hmac_to_tee_hash(&algo, mech_id);
-	if (rc)
-		return rc;
-
-	hash_size = TEE_ALG_GET_DIGEST_SIZE(algo);
-	hash_ptr = TEE_Malloc(hash_size, 0);
-	if (!hash_ptr)
-		return PKCS11_CKR_DEVICE_MEMORY;
-
-	rc = pkcs2tee_load_hashed_attr(tee_attr, TEE_ATTR_SECRET_VALUE, obj,
-				       PKCS11_CKA_VALUE, algo, hash_ptr,
-				       &hash_size);
-	if (rc) {
-		EMSG("No secret/hash error");
-		TEE_Free(hash_ptr);
-		return rc;
-	}
-
-	*ctx = hash_ptr;
-
-	*object_size_bits = hash_size * 8;
-
-	return PKCS11_CKR_OK;
-}
-
 static enum pkcs11_rc load_tee_key(struct pkcs11_session *session,
-				   struct pkcs11_object *obj,
-				   struct pkcs11_attribute_head *proc_params)
+				   struct pkcs11_object *obj)
 {
 	TEE_Attribute tee_attr = { };
 	size_t object_size = 0;
 	uint32_t tee_key_type = 0;
-	enum pkcs11_key_type key_type = 0;
 	enum pkcs11_rc rc = PKCS11_CKR_OK;
 	TEE_Result res = TEE_ERROR_GENERIC;
-	uint32_t max_key_size = 0;
-	uint32_t min_key_size = 0;
 
 	if (obj->key_handle != TEE_HANDLE_NULL) {
 		/* Key was already loaded and fits current need */
 		goto key_ready;
 	}
 
+	if (!pkcs2tee_load_attr(&tee_attr, TEE_ATTR_SECRET_VALUE,
+				obj, PKCS11_CKA_VALUE)) {
+		EMSG("No secret found");
+		return PKCS11_CKR_FUNCTION_FAILED;
+	}
+
+	rc = pkcs2tee_key_type(&tee_key_type, obj);
+	if (rc)
+		return rc;
+
 	object_size = get_object_key_bit_size(obj);
 	if (!object_size)
 		return PKCS11_CKR_GENERAL_ERROR;
-
-	switch (proc_params->id) {
-	case PKCS11_CKM_MD5_HMAC:
-	case PKCS11_CKM_SHA_1_HMAC:
-	case PKCS11_CKM_SHA224_HMAC:
-	case PKCS11_CKM_SHA256_HMAC:
-	case PKCS11_CKM_SHA384_HMAC:
-	case PKCS11_CKM_SHA512_HMAC:
-		key_type = get_key_type(obj->attributes);
-		/*
-		 * If Object Key type is PKCS11_CKK_GENERIC_SECRET,
-		 * determine the tee_key_type using the
-		 * mechanism instead of object key_type.
-		 */
-		if (key_type == PKCS11_CKK_GENERIC_SECRET)
-			rc = pkcsmech2tee_key_type(&tee_key_type,
-						   proc_params->id);
-		else
-			rc = pkcs2tee_key_type(&tee_key_type, obj);
-
-		if (rc)
-			return rc;
-
-		mechanism_supported_key_sizes(proc_params->id,
-					      &min_key_size,
-					      &max_key_size);
-
-		if ((object_size / 8) > max_key_size) {
-			rc = hash_secret_helper(proc_params->id, obj, &tee_attr,
-						&session->processing->extra_ctx,
-						&object_size);
-			if (rc)
-				return rc;
-		} else {
-			if (!pkcs2tee_load_attr(&tee_attr,
-						TEE_ATTR_SECRET_VALUE,
-						obj,
-						PKCS11_CKA_VALUE)) {
-				EMSG("No secret found");
-				return PKCS11_CKR_FUNCTION_FAILED;
-			}
-		}
-		break;
-
-	default:
-		rc = pkcs2tee_key_type(&tee_key_type, obj);
-		if (rc)
-			return rc;
-
-		if (!pkcs2tee_load_attr(&tee_attr, TEE_ATTR_SECRET_VALUE,
-					obj, PKCS11_CKA_VALUE)) {
-			EMSG("No secret found");
-			return PKCS11_CKR_FUNCTION_FAILED;
-		}
-		break;
-	}
 
 	res = TEE_AllocateTransientObject(tee_key_type, object_size,
 					  &obj->key_handle);
@@ -373,12 +227,15 @@ init_tee_operation(struct pkcs11_session *session,
 	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
 
 	switch (proc_params->id) {
+	case PKCS11_CKM_AES_CMAC_GENERAL:
+	case PKCS11_CKM_AES_CMAC:
 	case PKCS11_CKM_MD5_HMAC:
 	case PKCS11_CKM_SHA_1_HMAC:
 	case PKCS11_CKM_SHA224_HMAC:
 	case PKCS11_CKM_SHA256_HMAC:
 	case PKCS11_CKM_SHA384_HMAC:
 	case PKCS11_CKM_SHA512_HMAC:
+	case PKCS11_CKM_AES_XCBC_MAC:
 		if (proc_params->size)
 			return PKCS11_CKR_MECHANISM_PARAM_INVALID;
 
@@ -407,6 +264,16 @@ init_tee_operation(struct pkcs11_session *session,
 					    proc_params->data,
 					    proc_params->size);
 		break;
+	case PKCS11_CKM_AES_CCM:
+		rc = tee_init_ccm_operation(session->processing,
+					    proc_params->data,
+					    proc_params->size);
+		break;
+	case PKCS11_CKM_AES_GCM:
+		rc = tee_init_gcm_operation(session->processing,
+					    proc_params->data,
+					    proc_params->size);
+		break;
 	default:
 		TEE_Panic(proc_params->id);
 		break;
@@ -428,7 +295,7 @@ enum pkcs11_rc init_symm_operation(struct pkcs11_session *session,
 	if (rc)
 		return rc;
 
-	rc = load_tee_key(session, obj, proc_params);
+	rc = load_tee_key(session, obj);
 	if (rc)
 		return rc;
 
@@ -470,41 +337,6 @@ static enum pkcs11_rc input_data_size_is_valid(struct active_processing *proc,
 	return PKCS11_CKR_OK;
 }
 
-/* Validate input buffer size as per PKCS#11 constraints */
-static enum pkcs11_rc input_sign_size_is_valid(struct active_processing *proc,
-					       size_t in_size)
-{
-	size_t sign_sz = 0;
-
-	switch (proc->mecha_type) {
-	case PKCS11_CKM_MD5_HMAC:
-		sign_sz = TEE_MD5_HASH_SIZE;
-		break;
-	case PKCS11_CKM_SHA_1_HMAC:
-		sign_sz = TEE_SHA1_HASH_SIZE;
-		break;
-	case PKCS11_CKM_SHA224_HMAC:
-		sign_sz = TEE_SHA224_HASH_SIZE;
-		break;
-	case PKCS11_CKM_SHA256_HMAC:
-		sign_sz = TEE_SHA256_HASH_SIZE;
-		break;
-	case PKCS11_CKM_SHA384_HMAC:
-		sign_sz = TEE_SHA384_HASH_SIZE;
-		break;
-	case PKCS11_CKM_SHA512_HMAC:
-		sign_sz = TEE_SHA512_HASH_SIZE;
-		break;
-	default:
-		return PKCS11_CKR_GENERAL_ERROR;
-	}
-
-	if (in_size < sign_sz)
-		return PKCS11_CKR_SIGNATURE_LEN_RANGE;
-
-	return PKCS11_CKR_OK;
-}
-
 /*
  * step_sym_cipher - processing symmetric (and related) cipher operation step
  *
@@ -525,6 +357,7 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 	size_t in_size = 0;
 	void *out_buf = NULL;
 	uint32_t out_size = 0;
+	uint32_t out_size2 = out_size;
 	void *in2_buf = NULL;
 	uint32_t in2_size = 0;
 	bool output_data = false;
@@ -545,6 +378,7 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 	if (TEE_PARAM_TYPE_GET(ptypes, 2) == TEE_PARAM_TYPE_MEMREF_OUTPUT) {
 		out_buf = params[2].memref.buffer;
 		out_size = params[2].memref.size;
+		out_size2 = out_size;
 		if (out_size && !out_buf)
 			return PKCS11_CKR_ARGUMENTS_BAD;
 	}
@@ -568,16 +402,19 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 
 	/*
 	 * Feed active operation with data
+	 * (PKCS11_FUNC_STEP_UPDATE/_ONESHOT)
 	 */
 	switch (proc->mecha_type) {
+	case PKCS11_CKM_AES_CMAC_GENERAL:
+	case PKCS11_CKM_AES_CMAC:
 	case PKCS11_CKM_MD5_HMAC:
 	case PKCS11_CKM_SHA_1_HMAC:
 	case PKCS11_CKM_SHA224_HMAC:
 	case PKCS11_CKM_SHA256_HMAC:
 	case PKCS11_CKM_SHA384_HMAC:
 	case PKCS11_CKM_SHA512_HMAC:
-		if (step == PKCS11_FUNC_STEP_FINAL ||
-		    step == PKCS11_FUNC_STEP_ONESHOT)
+	case PKCS11_CKM_AES_XCBC_MAC:
+		if (step == PKCS11_FUNC_STEP_FINAL)
 			break;
 
 		if (!in_buf) {
@@ -626,6 +463,40 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 		}
 		break;
 
+	case PKCS11_CKM_AES_CCM:
+	case PKCS11_CKM_AES_GCM:
+		if (step == PKCS11_FUNC_STEP_FINAL)
+			break;
+
+		if (!in_buf) {
+			EMSG("No input data");
+			return PKCS11_CKR_ARGUMENTS_BAD;
+		}
+
+		switch (function) {
+		case PKCS11_FUNCTION_ENCRYPT:
+			res = TEE_AEUpdate(proc->tee_op_handle,
+					   in_buf, in_size, out_buf, &out_size);
+			output_data = true;
+			rc = tee2pkcs_error(res);
+
+			if (step == PKCS11_FUNC_STEP_ONESHOT &&
+			    (rc == PKCS11_CKR_OK ||
+			     rc == PKCS11_CKR_BUFFER_TOO_SMALL)) {
+				out_buf = (char *)out_buf + out_size;
+				out_size2 -= out_size;
+			}
+			break;
+		case PKCS11_FUNCTION_DECRYPT:
+			rc = tee_ae_decrypt_update(proc, in_buf, in_size);
+			out_size = 0;
+			output_data = true;
+			break;
+		default:
+			TEE_Panic(function);
+			break;
+		}
+		break;
 	default:
 		TEE_Panic(proc->mecha_type);
 		break;
@@ -638,34 +509,31 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 	 * Finalize (PKCS11_FUNC_STEP_ONESHOT/_FINAL) operation
 	 */
 	switch (session->processing->mecha_type) {
+	case PKCS11_CKM_AES_CMAC_GENERAL:
+	case PKCS11_CKM_AES_CMAC:
 	case PKCS11_CKM_MD5_HMAC:
 	case PKCS11_CKM_SHA_1_HMAC:
 	case PKCS11_CKM_SHA224_HMAC:
 	case PKCS11_CKM_SHA256_HMAC:
 	case PKCS11_CKM_SHA384_HMAC:
 	case PKCS11_CKM_SHA512_HMAC:
+	case PKCS11_CKM_AES_XCBC_MAC:
 		switch (function) {
 		case PKCS11_FUNCTION_SIGN:
 			res = TEE_MACComputeFinal(proc->tee_op_handle,
-						  in_buf, in_size, out_buf,
-						  &out_size);
+						  NULL, 0, out_buf, &out_size);
 			output_data = true;
 			rc = tee2pkcs_error(res);
 			break;
 		case PKCS11_FUNCTION_VERIFY:
-			rc = input_sign_size_is_valid(proc, in2_size);
-			if (rc)
-				return rc;
 			res = TEE_MACCompareFinal(proc->tee_op_handle,
-						  in_buf, in_size, in2_buf,
-						  in2_size);
+						  NULL, 0, in2_buf, in2_size);
 			rc = tee2pkcs_error(res);
 			break;
 		default:
 			TEE_Panic(function);
 			break;
 		}
-
 		break;
 
 	case PKCS11_CKM_AES_ECB:
@@ -692,6 +560,33 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 			break;
 		}
 		break;
+
+	case PKCS11_CKM_AES_CCM:
+	case PKCS11_CKM_AES_GCM:
+		switch (function) {
+		case PKCS11_FUNCTION_ENCRYPT:
+			rc = tee_ae_encrypt_final(proc, out_buf, &out_size2);
+			output_data = true;
+
+			/*
+			 * FIXME: on failure & ONESHOT, restore operation state
+			 * before TEE_AEUpdate() was called
+			 */
+			if (step == PKCS11_FUNC_STEP_ONESHOT) {
+				out_size += out_size2;
+			} else {
+				out_size = out_size2;
+			}
+			break;
+		case PKCS11_FUNCTION_DECRYPT:
+			rc = tee_ae_decrypt_final(proc, out_buf, &out_size);
+			output_data = true;
+			break;
+		default:
+			TEE_Panic(function);
+			break;
+		}
+		break;
 	default:
 		TEE_Panic(proc->mecha_type);
 		break;
@@ -712,4 +607,14 @@ out:
 	}
 
 	return rc;
+}
+
+enum pkcs11_rc do_symm_derivation(struct pkcs11_session *session __unused,
+				  struct pkcs11_attribute_head *params __unused,
+				  struct pkcs11_object *parent_key __unused,
+				  struct obj_attrs **head __unused)
+{
+	EMSG("Symm key derivation not yet supported");
+
+	return PKCS11_CKR_GENERAL_ERROR;
 }
