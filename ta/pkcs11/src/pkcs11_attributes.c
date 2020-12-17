@@ -843,12 +843,12 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 		if (rc)
 			goto out;
 
-		if (local) {
-			mechanism_id = mecha;
-		} else {
 		/* Keys mandate attribute PKCS11_CKA_KEY_GEN_MECHANISM */
+		if (local)
+			mechanism_id = mecha;
+		else
 			mechanism_id = PKCS11_CK_UNAVAILABLE_INFORMATION;
-		}
+
 		rc = add_attribute(&attrs, PKCS11_CKA_KEY_GEN_MECHANISM,
 				   &mechanism_id, sizeof(mechanism_id));
 		if (rc)
@@ -1012,12 +1012,10 @@ enum pkcs11_rc check_created_attrs_against_processing(uint32_t proc_id,
 
 	switch (proc_id) {
 	case PKCS11_CKM_GENERIC_SECRET_KEY_GEN:
-		if (get_key_type(head) != PKCS11_CKK_GENERIC_SECRET)
-			return PKCS11_CKR_TEMPLATE_INCONSISTENT;
+		assert(get_key_type(head) == PKCS11_CKK_GENERIC_SECRET);
 		break;
 	case PKCS11_CKM_AES_KEY_GEN:
-		if (get_key_type(head) != PKCS11_CKK_AES)
-			return PKCS11_CKR_TEMPLATE_INCONSISTENT;
+		assert(get_key_type(head) == PKCS11_CKK_AES);
 		break;
 	case PKCS11_PROCESSING_IMPORT:
 	default:
