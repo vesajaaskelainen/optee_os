@@ -23,7 +23,7 @@
 #include "token_capabilities.h"
 
 /* Byte size of CKA_ID attribute when generated locally */
-#define PKCS11_CKA_DEFAULT_SIZE		16
+#define PKCS11_CKA_DEFAULT_ID_SIZE		16
 
 static uint32_t pkcs11_func2ckfm(enum processing_func function)
 {
@@ -1285,4 +1285,71 @@ bool attribute_is_exportable(struct pkcs11_attribute_head *req_attr,
 	}
 
 	return true;
+}
+
+enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
+					struct obj_attrs **attrs2)
+{
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+	void *id1 = NULL;
+	uint32_t id1_size = 0;
+	void *id2 = NULL;
+	uint32_t id2_size = 0;
+
+	rc = get_attribute_ptr(*attrs1, PKCS11_CKA_ID, &id1, &id1_size);
+	if (rc) {
+		if (rc != PKCS11_RV_NOT_FOUND)
+			return rc;
+		id1 = NULL;
+	} else if (!id1_size) {
+		/* Remove empty CKA_ID to allow value to be filled */
+		rc = remove_empty_attribute(attrs1, PKCS11_CKA_ID);
+		if (rc)
+			return rc;
+		id1 = NULL;
+	}
+
+	if (attrs2) {
+		rc = get_attribute_ptr(*attrs2, PKCS11_CKA_ID, &id2, &id2_size);
+		if (rc) {
+			if (rc != PKCS11_RV_NOT_FOUND)
+				return rc;
+			id2 = NULL;
+		} else if (!id2_size) {
+			/* Remove empty CKA_ID to allow value to be filled */
+			rc = remove_empty_attribute(attrs2, PKCS11_CKA_ID);
+			if (rc)
+				return rc;
+			id2 = NULL;
+		}
+
+		if (id1 && id2)
+			return PKCS11_CKR_OK;
+
+		if (id1 && !id2)
+			return add_attribute(attrs2, PKCS11_CKA_ID,
+					     id1, id1_size);
+
+		if (!id1 && id2)
+			return add_attribute(attrs1, PKCS11_CKA_ID,
+					     id2, id2_size);
+	} else {
+		if (id1)
+			return PKCS11_CKR_OK;
+	}
+
+	id1_size = PKCS11_CKA_DEFAULT_ID_SIZE;
+	id1 = TEE_Malloc(id1_size, 0);
+	if (!id1)
+		return PKCS11_CKR_DEVICE_MEMORY;
+
+	TEE_GenerateRandom(id1, (uint32_t)id1_size);
+
+	rc = add_attribute(attrs1, PKCS11_CKA_ID, id1, id1_size);
+	if (rc == PKCS11_CKR_OK && attrs2)
+		rc = add_attribute(attrs2, PKCS11_CKA_ID, id1, id1_size);
+
+	TEE_Free(id1);
+
+	return rc;
 }

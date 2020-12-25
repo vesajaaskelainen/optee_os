@@ -163,4 +163,16 @@ check_mechanism_against_processing(struct pkcs11_session *session,
 bool attribute_is_exportable(struct pkcs11_attribute_head *req_attr,
 			     struct pkcs11_object *obj);
 
+/*
+ * Add a CKA ID attribute to an object or paired object if missing.
+ * If 2 objects are provided and at least 1 does not have a CKA_ID,
+ * the 2 objects will have the same CKA_ID attribute.
+ *
+ * @attrs1 - Object
+ * @attrs2 - Object paired to attrs1 or NULL
+ * Return an PKCS11 return code
+ */
+enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
+					struct obj_attrs **attrs2);
+
 #endif /*PKCS11_TA_PKCS11_ATTRIBUTES_H*/
