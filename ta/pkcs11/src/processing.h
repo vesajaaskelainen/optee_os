@@ -66,4 +66,16 @@ enum pkcs11_rc step_symm_operation(struct pkcs11_session *session,
 
 enum pkcs11_rc tee_init_ctr_operation(struct active_processing *processing,
 				      void *proc_params, size_t params_size);
+
+/*
+ * Elliptic curve crypto algorithm specific functions
+ */
+size_t ec_params2tee_keysize(void *attr, size_t size);
+
+uint32_t ec_params2tee_curve(void *attr, size_t size);
+
+enum pkcs11_rc generate_ec_keys(struct pkcs11_attribute_head *proc_params,
+				struct obj_attrs **pub_head,
+				struct obj_attrs **priv_head);
+
 #endif /*PKCS11_TA_PROCESSING_H*/
