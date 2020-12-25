@@ -23,7 +23,7 @@
 #include "token_capabilities.h"
 
 /* Byte size of CKA_ID attribute when generated locally */
-#define PKCS11_CKA_DEFAULT_ID_SIZE		16
+#define PKCS11_CKA_ID_DEFAULT_SIZE		16
 
 static uint32_t pkcs11_func2ckfm(enum processing_func function)
 {
@@ -1338,7 +1338,7 @@ enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **attrs1,
 			return PKCS11_CKR_OK;
 	}
 
-	id1_size = PKCS11_CKA_DEFAULT_ID_SIZE;
+	id1_size = PKCS11_CKA_ID_DEFAULT_SIZE;
 	id1 = TEE_Malloc(id1_size, 0);
 	if (!id1)
 		return PKCS11_CKR_DEVICE_MEMORY;
