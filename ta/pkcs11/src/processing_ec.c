@@ -399,6 +399,87 @@ uint32_t load_tee_ec_key_attrs(TEE_Attribute **tee_attrs, size_t *tee_count,
 	return rc;
 }
 
+uint32_t pkcs2tee_algo_ecdh(uint32_t *tee_id,
+			    struct pkcs11_attribute_head *proc_params,
+			    struct pkcs11_object *obj)
+{
+	struct serialargs args = { };
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+	uint32_t kdf = 0;
+
+	serialargs_init(&args, proc_params->data, proc_params->size);
+
+	rc = serialargs_get(&args, &kdf, sizeof(uint32_t));
+	if (rc)
+		return rc;
+
+	/* Remaining arguments are extracted by pkcs2tee_ecdh_param_pub() */
+
+	if (kdf != PKCS11_CKD_NULL) {
+		EMSG("Currently no support for hashed shared data");
+		return PKCS11_CKR_MECHANISM_PARAM_INVALID;
+	}
+
+	switch (get_object_key_bit_size(obj)) {
+	case 192:
+		*tee_id = TEE_ALG_ECDH_P192;
+		break;
+	case 224:
+		*tee_id = TEE_ALG_ECDH_P224;
+		break;
+	case 256:
+		*tee_id = TEE_ALG_ECDH_P256;
+		break;
+	case 384:
+		*tee_id = TEE_ALG_ECDH_P384;
+		break;
+	case 521:
+		*tee_id = TEE_ALG_ECDH_P521;
+		break;
+	default:
+		TEE_Panic(0);
+		break;
+	}
+
+	return PKCS11_CKR_OK;
+}
+
+uint32_t pkcs2tee_ecdh_param_pub(struct pkcs11_attribute_head *proc_params,
+				 void **pub_data, size_t *pub_size)
+{
+	struct serialargs args = { };
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+	uint32_t temp = 0;
+
+	serialargs_init(&args, proc_params->data, proc_params->size);
+
+	/* Skip KDF already extracted by pkcs2tee_algo_ecdh() */
+	rc = serialargs_get(&args, &temp, sizeof(uint32_t));
+	if (rc)
+		return rc;
+
+	/* Shared data size, shall be 0 */
+	rc = serialargs_get(&args, &temp, sizeof(uint32_t));
+	if (rc || temp)
+		return rc;
+
+	/* Public data size and content */
+	rc = serialargs_get(&args, &temp, sizeof(uint32_t));
+	if (rc || !temp)
+		return rc;
+
+	rc = serialargs_get_ptr(&args, pub_data, temp);
+	if (rc)
+		return rc;
+
+	if (serialargs_remaining_bytes(&args))
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	*pub_size = temp;
+
+	return PKCS11_CKR_OK;
+}
+
 uint32_t pkcs2tee_algo_ecdsa(uint32_t *tee_id,
 			     struct pkcs11_attribute_head *proc_params,
 			     struct pkcs11_object *obj)

@@ -83,6 +83,10 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 				    enum processing_step step,
 				    uint32_t ptypes, TEE_Param *params);
 
+enum pkcs11_rc do_asymm_derivation(struct pkcs11_session *session,
+				   struct pkcs11_attribute_head *proc_params,
+				   struct obj_attrs **head);
+
 /*
  * Elliptic curve crypto algorithm specific functions
  */
@@ -93,6 +97,13 @@ enum pkcs11_rc load_tee_ec_key_attrs(TEE_Attribute **tee_attrs,
 size_t ec_params2tee_keysize(void *attr, size_t size);
 
 uint32_t ec_params2tee_curve(void *attr, size_t size);
+
+enum pkcs11_rc pkcs2tee_algo_ecdh(uint32_t *tee_id,
+				  struct pkcs11_attribute_head *proc_params,
+				  struct pkcs11_object *obj);
+
+enum pkcs11_rc pkcs2tee_ecdh_param_pub(struct pkcs11_attribute_head *params,
+				       void **pub_data, size_t *pub_size);
 
 enum pkcs11_rc pkcs2tee_algo_ecdsa(uint32_t *tee_id,
 				   struct pkcs11_attribute_head *proc_params,

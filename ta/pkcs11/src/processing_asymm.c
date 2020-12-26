@@ -25,6 +25,8 @@ bool processing_is_tee_asymm(uint32_t proc_id)
 	case PKCS11_CKM_ECDSA_SHA256:
 	case PKCS11_CKM_ECDSA_SHA384:
 	case PKCS11_CKM_ECDSA_SHA512:
+	case PKCS11_CKM_ECDH1_DERIVE:
+	case PKCS11_CKM_ECDH1_COFACTOR_DERIVE:
 		return true;
 	default:
 		return false;
@@ -44,6 +46,8 @@ static uint32_t pkcs2tee_algorithm(uint32_t *tee_id,
 		{ PKCS11_CKM_ECDSA_SHA256, 1 },
 		{ PKCS11_CKM_ECDSA_SHA384, 1 },
 		{ PKCS11_CKM_ECDSA_SHA512, 1 },
+		{ PKCS11_CKM_ECDH1_DERIVE, 1 },
+		{ PKCS11_CKM_ECDH1_COFACTOR_DERIVE, 1 },
 	};
 	size_t end = sizeof(pkcs2tee_algo) / (2 * sizeof(uint32_t));
 	size_t n = 0;
@@ -60,6 +64,11 @@ static uint32_t pkcs2tee_algorithm(uint32_t *tee_id,
 		return PKCS11_RV_NOT_IMPLEMENTED;
 
 	switch (proc_params->id) {
+	case PKCS11_CKM_ECDH1_DERIVE:
+		rc = pkcs2tee_algo_ecdh(tee_id, proc_params, obj);
+		break;
+	case PKCS11_CKM_ECDH1_COFACTOR_DERIVE:
+		return PKCS11_RV_NOT_IMPLEMENTED;
 	case PKCS11_CKM_ECDSA:
 	case PKCS11_CKM_ECDSA_SHA1:
 	case PKCS11_CKM_ECDSA_SHA224:
@@ -93,12 +102,14 @@ static uint32_t pkcs2tee_key_type(uint32_t *tee_type, struct pkcs11_object *obj,
 
 	switch (type) {
 	case PKCS11_CKK_EC:
-		assert(function != PKCS11_FUNCTION_DERIVE);
-
 		if (class == PKCS11_CKO_PRIVATE_KEY)
-			*tee_type = TEE_TYPE_ECDSA_KEYPAIR;
+			*tee_type = (function == PKCS11_FUNCTION_DERIVE) ?
+					TEE_TYPE_ECDH_KEYPAIR :
+					TEE_TYPE_ECDSA_KEYPAIR;
 		else
-			*tee_type = TEE_TYPE_ECDSA_PUBLIC_KEY;
+			*tee_type = (function == PKCS11_FUNCTION_DERIVE) ?
+					TEE_TYPE_ECDH_PUBLIC_KEY :
+					TEE_TYPE_ECDSA_PUBLIC_KEY;
 		break;
 	default:
 		TEE_Panic(type);
@@ -160,6 +171,11 @@ static uint32_t load_tee_key(struct pkcs11_session *session,
 			case TEE_TYPE_ECDSA_PUBLIC_KEY:
 			case TEE_TYPE_ECDSA_KEYPAIR:
 				if (function != PKCS11_FUNCTION_DERIVE)
+					goto key_ready;
+				break;
+			case TEE_TYPE_ECDH_PUBLIC_KEY:
+			case TEE_TYPE_ECDH_KEYPAIR:
+				if (function == PKCS11_FUNCTION_DERIVE)
 					goto key_ready;
 				break;
 			default:
@@ -502,6 +518,24 @@ uint32_t do_asymm_derivation(struct pkcs11_session *session,
 	}
 
 	switch (proc_params->id) {
+	case PKCS11_CKM_ECDH1_DERIVE:
+	case PKCS11_CKM_ECDH1_COFACTOR_DERIVE:
+		rc = pkcs2tee_ecdh_param_pub(proc_params, &a_ptr, &a_size);
+		if (rc)
+			goto out;
+
+		// TODO: check size is the expected one (active proc key)
+		TEE_InitRefAttribute(&tee_attrs[tee_attrs_count],
+				     TEE_ATTR_ECC_PUBLIC_VALUE_X,
+				     a_ptr, a_size / 2);
+		tee_attrs_count++;
+
+		TEE_InitRefAttribute(&tee_attrs[tee_attrs_count],
+				     TEE_ATTR_ECC_PUBLIC_VALUE_Y,
+				     (char *)a_ptr + a_size / 2,
+				     a_size / 2);
+		tee_attrs_count++;
+		break;
 	default:
 		TEE_Panic(proc_params->id);
 		break;

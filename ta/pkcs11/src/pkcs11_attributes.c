@@ -1047,6 +1047,8 @@ enum pkcs11_rc check_created_attrs_against_processing(uint32_t proc_id,
 	 */
 	switch (proc_id) {
 	case PKCS11_PROCESSING_IMPORT:
+	case PKCS11_CKM_ECDH1_DERIVE:
+	case PKCS11_CKM_ECDH1_COFACTOR_DERIVE:
 		assert(check_attr_bval(proc_id, head, PKCS11_CKA_LOCAL, false));
 		break;
 	case PKCS11_CKM_GENERIC_SECRET_KEY_GEN:
@@ -1068,6 +1070,11 @@ enum pkcs11_rc check_created_attrs_against_processing(uint32_t proc_id,
 		break;
 	case PKCS11_CKM_EC_KEY_PAIR_GEN:
 		assert(get_key_type(head) == PKCS11_CKK_EC);
+		break;
+	case PKCS11_CKM_ECDH1_DERIVE:
+	case PKCS11_CKM_ECDH1_COFACTOR_DERIVE:
+		if (get_class(head) != PKCS11_CKO_SECRET_KEY)
+			return PKCS11_CKR_TEMPLATE_INCONSISTENT;
 		break;
 	case PKCS11_PROCESSING_IMPORT:
 	default:
@@ -1355,6 +1362,9 @@ check_parent_attrs_against_processing(enum pkcs11_mechanism_id proc_id,
 	case PKCS11_CKM_ECDSA_SHA256:
 	case PKCS11_CKM_ECDSA_SHA384:
 	case PKCS11_CKM_ECDSA_SHA512:
+	case PKCS11_CKM_ECDH1_DERIVE:
+	case PKCS11_CKM_ECDH1_COFACTOR_DERIVE:
+	case PKCS11_CKM_ECMQV_DERIVE:
 		if (key_type != PKCS11_CKK_EC) {
 			EMSG("Invalid key %s for mechanism %s",
 			     id2str_type(key_type, key_class),
