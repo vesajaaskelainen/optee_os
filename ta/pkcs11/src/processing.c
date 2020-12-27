@@ -689,3 +689,148 @@ out:
 
 	return rc;
 }
+
+enum pkcs11_rc entry_derive_key(struct pkcs11_client *client,
+				uint32_t ptypes, TEE_Param *params)
+{
+	const uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_MEMREF_OUTPUT,
+						TEE_PARAM_TYPE_NONE);
+	TEE_Param *ctrl = params;
+	TEE_Param *out = params + 2;
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+	struct serialargs ctrlargs = { };
+	struct pkcs11_session *session = NULL;
+	struct pkcs11_attribute_head *proc_params = NULL;
+	uint32_t parent_handle = 0;
+	struct pkcs11_object *parent_obj;
+	struct obj_attrs *head = NULL;
+	struct pkcs11_object_head *template = NULL;
+	size_t template_size = 0;
+	uint32_t out_handle = 0;
+	uint32_t __maybe_unused mecha_id = 0;
+
+	if (!client || ptypes != exp_pt ||
+	    out->memref.size != sizeof(out_handle))
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	serialargs_init(&ctrlargs, ctrl->memref.buffer, ctrl->memref.size);
+
+	rc = serialargs_get_session_from_handle(&ctrlargs, client, &session);
+	if (rc)
+		return rc;
+
+	rc = serialargs_alloc_get_one_attribute(&ctrlargs, &proc_params);
+	if (rc)
+		goto out;
+
+	rc = serialargs_get(&ctrlargs, &parent_handle, sizeof(uint32_t));
+	if (rc)
+		goto out;
+
+	rc = serialargs_alloc_get_attributes(&ctrlargs, &template);
+	if (rc)
+		goto out;
+
+	if (serialargs_remaining_bytes(&ctrlargs)) {
+		rc = PKCS11_CKR_ARGUMENTS_BAD;
+		goto out;
+	}
+
+	rc = get_ready_session(session);
+	if (rc)
+		goto out;
+
+	parent_obj = pkcs11_handle2object(parent_handle, session);
+	if (!parent_obj) {
+		rc = PKCS11_CKR_KEY_HANDLE_INVALID;
+		goto out;
+	}
+
+	rc = set_processing_state(session, PKCS11_FUNCTION_DERIVE,
+				  parent_obj, NULL);
+	if (rc)
+		goto out;
+
+	template_size = sizeof(*template) + template->attrs_size;
+
+	rc = check_mechanism_against_processing(session, proc_params->id,
+						PKCS11_FUNCTION_DERIVE,
+						PKCS11_FUNC_STEP_INIT);
+	if (rc)
+		goto out;
+
+	rc = create_attributes_from_template(&head, template, template_size,
+					     parent_obj->attributes,
+					     PKCS11_FUNCTION_DERIVE,
+					     proc_params->id,
+					     PKCS11_CKO_UNDEFINED_ID);
+	if (rc)
+		goto out;
+
+	TEE_Free(template);
+	template = NULL;
+
+	rc = check_created_attrs(head, NULL);
+	if (rc)
+		goto out;
+
+	rc = check_created_attrs_against_processing(proc_params->id, head);
+	if (rc)
+		goto out;
+
+	rc = check_created_attrs_against_token(session, head);
+	if (rc)
+		goto out;
+
+	// TODO: check_created_against_parent(session, parent, child);
+	// This can handle DERVIE_TEMPLATE attributes from the parent key.
+
+	if (processing_is_tee_asymm(proc_params->id)) {
+		rc = init_asymm_operation(session, PKCS11_FUNCTION_DERIVE,
+					  proc_params, parent_obj);
+		if (rc)
+			goto out;
+
+		rc = do_asymm_derivation(session, proc_params, &head);
+	} else {
+		rc = PKCS11_CKR_MECHANISM_INVALID;
+	}
+
+	if (rc)
+		goto out;
+
+	mecha_id = proc_params->id;
+	TEE_Free(proc_params);
+	proc_params = NULL;
+
+	/*
+	 * Object is ready, register it and return a handle.
+	 */
+	rc = create_object(session, head, &out_handle);
+	if (rc)
+		goto out;
+
+	/*
+	 * Now out_handle (through the related struct pkcs11_object instance)
+	 * owns the serialized buffer that holds the object attributes.
+	 * We reset attrs->buffer to NULL as serializer object is no more
+	 * the attributes buffer owner.
+	 */
+	head = NULL;
+
+	TEE_MemMove(out->memref.buffer, &out_handle, sizeof(out_handle));
+	out->memref.size = sizeof(out_handle);
+
+	DMSG("PKCS11 session %"PRIu32": derive key %#"PRIx32"/%s",
+	     session->handle, out_handle, id2str_proc(mecha_id));
+
+out:
+	release_active_processing(session);
+	TEE_Free(proc_params);
+	TEE_Free(template);
+	TEE_Free(head);
+
+	return rc;
+}

@@ -465,3 +465,65 @@ out:
 
 	return rc;
 }
+
+uint32_t do_asymm_derivation(struct pkcs11_session *session,
+			     struct pkcs11_attribute_head *proc_params,
+			     struct obj_attrs **head)
+{
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	TEE_Attribute tee_attrs[2] = { };
+	size_t tee_attrs_count = 0;
+	TEE_ObjectHandle out_handle = TEE_HANDLE_NULL;
+	void *a_ptr = NULL;
+	size_t a_size = 0;
+	uint32_t key_bit_size = 0;
+	uint32_t key_byte_size = 0;
+
+	/* Remove default attribute set at template sanitization */
+	if (remove_empty_attribute(head, PKCS11_CKA_VALUE))
+		return PKCS11_CKR_FUNCTION_FAILED;
+
+	rc = get_u32_attribute(*head, PKCS11_CKA_VALUE_LEN, &key_bit_size);
+	if (rc)
+		return rc;
+
+	if (get_key_type(*head) != PKCS11_CKK_GENERIC_SECRET)
+		key_bit_size *= 8;
+
+	key_byte_size = (key_bit_size + 7) / 8;
+
+	res = TEE_AllocateTransientObject(TEE_TYPE_GENERIC_SECRET,
+					  key_byte_size * 8, &out_handle);
+	if (res) {
+		DMSG("TEE_AllocateTransientObject failed, %#"PRIx32, res);
+
+		return tee2pkcs_error(res);
+	}
+
+	switch (proc_params->id) {
+	default:
+		TEE_Panic(proc_params->id);
+		break;
+	}
+
+	TEE_DeriveKey(session->processing->tee_op_handle, &tee_attrs[0],
+		      tee_attrs_count, out_handle);
+
+	rc = alloc_get_tee_attribute_data(out_handle, TEE_ATTR_SECRET_VALUE,
+					  &a_ptr, &a_size);
+	if (rc)
+		goto out;
+
+	if (a_size * 8 < key_bit_size)
+		rc = PKCS11_CKR_KEY_SIZE_RANGE;
+	else
+		rc = add_attribute(head, PKCS11_CKA_VALUE, a_ptr,
+				   key_byte_size);
+
+	TEE_Free(a_ptr);
+out:
+	release_active_processing(session);
+	TEE_FreeTransientObject(out_handle);
+	return rc;
+}

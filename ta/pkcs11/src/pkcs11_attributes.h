@@ -132,6 +132,10 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 enum pkcs11_rc check_created_attrs_against_token(struct pkcs11_session *session,
 						 struct obj_attrs *head);
 
+enum pkcs11_rc check_created_attrs_against_parent_key(uint32_t proc_id,
+						      struct obj_attrs *parent,
+						      struct obj_attrs *head);
+
 enum pkcs11_rc check_created_attrs_against_processing(uint32_t proc_id,
 						      struct obj_attrs *head);
 

@@ -529,6 +529,23 @@ enum pkcs11_ta_cmd {
 	 * C_GenerateKeyPair().
 	 */
 	PKCS11_CMD_GENERATE_KEY_PAIR = 145,
+
+	/*
+	 * PKCS11_CMD_DERIVE_KEY - Derive a key from already provisioned parent
+	 * key
+	 *
+	 * [in]	 memref[0] = [
+	 *              32bit session handle,
+	 *              (struct pkcs11_attribute_head)mechanism + mecha params,
+	 *              32bit key handle,
+	 *              (struct pkcs11_object_head)attribs + attributes data
+	 *	 ]
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = 32bit object handle
+	 *
+	 * This command relates to the PKCS#11 API functions C_DeriveKey().
+	 */
+	PKCS11_CMD_DERIVE_KEY = 144,
 };
 
 /*

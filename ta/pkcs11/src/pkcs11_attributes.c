@@ -699,6 +699,9 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 	case PKCS11_FUNCTION_GENERATE_PAIR:
 	case PKCS11_FUNCTION_IMPORT:
 		break;
+	case PKCS11_FUNCTION_DERIVE:
+		trace_attributes("parent", parent);
+		break;
 	default:
 		TEE_Panic(TEE_ERROR_NOT_SUPPORTED);
 	}
@@ -823,6 +826,7 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 	case PKCS11_FUNCTION_GENERATE_PAIR:
 		local = PKCS11_TRUE;
 		break;
+	case PKCS11_FUNCTION_DERIVE:
 	case PKCS11_FUNCTION_IMPORT:
 	default:
 		local = PKCS11_FALSE;
@@ -840,6 +844,15 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 		never_extract = PKCS11_FALSE;
 
 		switch (function) {
+		case PKCS11_FUNCTION_DERIVE:
+			always_sensitive =
+				get_bool(parent, PKCS11_CKA_ALWAYS_SENSITIVE) &&
+				get_bool(attrs, PKCS11_CKA_SENSITIVE);
+			never_extract = get_bool(parent,
+						 PKCS11_CKA_NEVER_EXTRACTABLE) &&
+					!get_bool(attrs,
+						  PKCS11_CKA_EXTRACTABLE);
+			break;
 		case PKCS11_FUNCTION_GENERATE:
 			always_sensitive = get_bool(attrs,
 						    PKCS11_CKA_SENSITIVE);
@@ -972,6 +985,24 @@ enum pkcs11_rc check_created_attrs_against_token(struct pkcs11_session *session,
 	 * TODO: START_DATE and END_DATE: complies with current time?
 	 */
 	return PKCS11_CKR_OK;
+}
+
+/*
+ * Check the attributes of new secret match the requirements of the parent key.
+ */
+enum pkcs11_rc
+check_created_attrs_against_parent_key(uint32_t proc_id __unused,
+				       struct obj_attrs *parent __unused,
+				       struct obj_attrs *head __unused)
+{
+	/*
+	 * TODO
+	 * Depends on the processing§/mechanism used.
+	 * Wrapping: check head vs parent key WRAP_TEMPLATE attribute.
+	 * Unwrapping: check head vs parent key UNWRAP_TEMPLATE attribute.
+	 * Derive: check head vs parent key DERIVE_TEMPLATE attribute.
+	 */
+	return PKCS11_CKR_GENERAL_ERROR;
 }
 
 #define DMSG_BAD_BBOOL(attr, proc, head)				\
