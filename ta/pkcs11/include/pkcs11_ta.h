@@ -546,6 +546,28 @@ enum pkcs11_ta_cmd {
 	 * This command relates to the PKCS#11 API functions C_DeriveKey().
 	 */
 	PKCS11_CMD_DERIVE_KEY = 144,
+
+	/*
+	 * PKCS11_CMD_SEED_RANDOM - Generate random data
+	 *
+	 * [in]  memref[0] = 32bit session handle
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [in]  memref[1] = byte array: seed material to feed into the RNG
+	 *
+	 * This command relates to the PKCS#11 API function C_SeedRandom().
+	 */
+	PKCS11_CMD_SEED_RANDOM = 150,
+
+	/*
+	 * PKCS11_CMD_GENERATE_RANDOM - Generate random data
+	 *
+	 * [in]  memref[0] = 32bit session handle
+	 * [out] memref[0] = 32bit return code, enum pkcs11_rc
+	 * [out] memref[2] = byte array: generated random
+	 *
+	 * This command relates to the PKCS#11 API function C_GenerateRandom().
+	 */
+	PKCS11_CMD_GENERATE_RANDOM = 151,
 };
 
 /*
