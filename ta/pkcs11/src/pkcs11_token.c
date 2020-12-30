@@ -1425,3 +1425,83 @@ enum pkcs11_rc entry_ck_logout(struct pkcs11_client *client,
 
 	return PKCS11_CKR_OK;
 }
+
+enum pkcs11_rc entry_ck_seed_random(struct pkcs11_client *client,
+				    uint32_t ptypes, TEE_Param *params)
+{
+	const uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+						TEE_PARAM_TYPE_MEMREF_INPUT,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_NONE);
+	TEE_Param *ctrl = params;
+	enum pkcs11_rc rc = PKCS11_CKR_OK;
+	struct serialargs ctrlargs = { };
+	struct pkcs11_session *session = NULL;
+
+	if (!client || ptypes != exp_pt)
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	serialargs_init(&ctrlargs, ctrl->memref.buffer, ctrl->memref.size);
+
+	rc = serialargs_get_session_from_handle(&ctrlargs, client, &session);
+	if (rc)
+		return rc;
+
+	if (serialargs_remaining_bytes(&ctrlargs))
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	if (TEE_PARAM_TYPE_GET(ptypes, 1) == TEE_PARAM_TYPE_MEMREF_INPUT) {
+		if (params[1].memref.size && !params[1].memref.buffer)
+			return PKCS11_CKR_ARGUMENTS_BAD;
+	}
+
+	/* noop - just ignore the input seed */
+
+	IMSG("PKCS11 session %"PRIu32": seed random", session->handle);
+
+	return PKCS11_CKR_OK;
+}
+
+enum pkcs11_rc entry_ck_generate_random(struct pkcs11_client *client,
+					uint32_t ptypes, TEE_Param *params)
+{
+	const uint32_t exp_pt = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INOUT,
+						TEE_PARAM_TYPE_NONE,
+						TEE_PARAM_TYPE_MEMREF_OUTPUT,
+						TEE_PARAM_TYPE_NONE);
+	TEE_Param *ctrl = params;
+	TEE_Param *out = params + 2;
+	enum pkcs11_rc rc = PKCS11_CKR_OK;
+	struct serialargs ctrlargs = { };
+	struct pkcs11_session *session = NULL;
+	void *buffer = NULL;
+
+	if (!client || ptypes != exp_pt)
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	serialargs_init(&ctrlargs, ctrl->memref.buffer, ctrl->memref.size);
+
+	rc = serialargs_get_session_from_handle(&ctrlargs, client, &session);
+	if (rc)
+		return rc;
+
+	if (serialargs_remaining_bytes(&ctrlargs))
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	if (out->memref.size && !out->memref.buffer)
+		return PKCS11_CKR_ARGUMENTS_BAD;
+
+	buffer = TEE_Malloc(out->memref.size, TEE_MALLOC_FILL_ZERO);
+	if (!buffer)
+		return PKCS11_CKR_DEVICE_MEMORY;
+
+	TEE_GenerateRandom(buffer, out->memref.size);
+
+	TEE_MemMove(out->memref.buffer, buffer, out->memref.size);
+
+	IMSG("PKCS11 session %"PRIu32": generate random", session->handle);
+
+	TEE_Free(buffer);
+
+	return PKCS11_CKR_OK;
+}

@@ -179,6 +179,8 @@ static const struct any_id __maybe_unused string_ta_cmd[] = {
 	PKCS11_ID(PKCS11_CMD_GET_ATTRIBUTE_VALUE),
 	PKCS11_ID(PKCS11_CMD_GENERATE_KEY_PAIR),
 	PKCS11_ID(PKCS11_CMD_DERIVE_KEY),
+	PKCS11_ID(PKCS11_CMD_SEED_RANDOM),
+	PKCS11_ID(PKCS11_CMD_GENERATE_RANDOM),
 };
 
 static const struct any_id __maybe_unused string_slot_flags[] = {
