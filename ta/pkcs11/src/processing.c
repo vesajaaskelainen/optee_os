@@ -350,6 +350,7 @@ enum pkcs11_rc entry_generate_key_pair(struct pkcs11_client *client,
 	struct obj_attrs *pub_head = NULL;
 	struct obj_attrs *priv_head = NULL;
 	struct pkcs11_object_head *template = NULL;
+	struct pkcs11_object *object = NULL;
 	size_t template_size = 0;
 	uint32_t pubkey_handle = 0;
 	uint32_t privkey_handle = 0;
@@ -492,8 +493,12 @@ enum pkcs11_rc entry_generate_key_pair(struct pkcs11_client *client,
 	     session->handle, privkey_handle, pubkey_handle);
 
 out:
-	if (pubkey_handle)
-		destroy_object(session, pubkey_handle, false);
+	if (pubkey_handle) {
+		object = pkcs11_handle2object(pubkey_handle, session);
+		if (!object)
+			TEE_Panic(0);
+		destroy_object(session, object, false);
+	}
 	TEE_Free(priv_head);
 	TEE_Free(pub_head);
 	TEE_Free(template);
