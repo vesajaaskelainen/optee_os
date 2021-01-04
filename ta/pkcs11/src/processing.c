@@ -113,6 +113,9 @@ void release_active_processing(struct pkcs11_session *session)
 	case PKCS11_CKM_SHA224_RSA_PKCS_PSS:
 		tee_release_rsa_pss_operation(session->processing);
 		break;
+	case PKCS11_CKM_RSA_PKCS_OAEP:
+		tee_release_rsa_oaep_operation(session->processing);
+		break;
 	default:
 		break;
 	}

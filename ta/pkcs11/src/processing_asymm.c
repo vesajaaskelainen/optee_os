@@ -20,6 +20,7 @@ bool processing_is_tee_asymm(uint32_t proc_id)
 	switch (proc_id) {
 	/* RSA flavors */
 	case PKCS11_CKM_RSA_PKCS:
+	case PKCS11_CKM_RSA_PKCS_OAEP:
 	case PKCS11_CKM_RSA_PKCS_PSS:
 	case PKCS11_CKM_MD5_RSA_PKCS:
 	case PKCS11_CKM_SHA1_RSA_PKCS:
@@ -58,6 +59,7 @@ pkcs2tee_algorithm(uint32_t *tee_id, uint32_t *tee_hash_id,
 	} pkcs2tee_algo[] = {
 		/* RSA flavors */
 		{ PKCS11_CKM_RSA_PKCS, TEE_ALG_RSAES_PKCS1_V1_5, 0 },
+		{ PKCS11_CKM_RSA_PKCS_OAEP, 1, 0 },
 		{ PKCS11_CKM_RSA_PKCS_PSS, 1, 0 },
 		{ PKCS11_CKM_MD5_RSA_PKCS, TEE_ALG_RSASSA_PKCS1_V1_5_MD5,
 		  TEE_ALG_MD5 },
@@ -111,6 +113,9 @@ pkcs2tee_algorithm(uint32_t *tee_id, uint32_t *tee_hash_id,
 	case PKCS11_CKM_SHA384_RSA_PKCS_PSS:
 	case PKCS11_CKM_SHA512_RSA_PKCS_PSS:
 		rc = pkcs2tee_algo_rsa_pss(tee_id, proc_params);
+		break;
+	case PKCS11_CKM_RSA_PKCS_OAEP:
+		rc = pkcs2tee_algo_rsa_oaep(tee_id, tee_hash_id, proc_params);
 		break;
 	case PKCS11_CKM_ECDSA:
 	case PKCS11_CKM_ECDSA_SHA1:
@@ -397,6 +402,12 @@ init_tee_operation(struct pkcs11_session *session,
 			return PKCS11_CKR_KEY_SIZE_RANGE;
 		break;
 
+	case PKCS11_CKM_RSA_PKCS_OAEP:
+		rc = pkcs2tee_proc_params_rsa_oaep(proc, proc_params);
+		if (rc)
+			return rc;
+		break;
+
 	default:
 		break;
 	}
@@ -452,6 +463,7 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 	size_t tee_attrs_count = 0;
 	bool output_data = false;
 	struct active_processing *proc = session->processing;
+	struct rsa_oaep_processing_ctx *rsa_oaep_ctx = NULL;
 	struct rsa_pss_processing_ctx *rsa_pss_ctx = NULL;
 	size_t sz = 0;
 
@@ -505,6 +517,25 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 		TEE_InitValueAttribute(&tee_attrs[tee_attrs_count],
 				       TEE_ATTR_RSA_PSS_SALT_LENGTH,
 				       rsa_pss_ctx->salt_len, 0);
+		tee_attrs_count++;
+		break;
+	case PKCS11_CKM_RSA_PKCS_OAEP:
+		rsa_oaep_ctx = proc->extra_ctx;
+
+		if (!rsa_oaep_ctx->source_data_len)
+			break;
+
+		tee_attrs = TEE_Malloc(sizeof(TEE_Attribute),
+				       TEE_USER_MEM_HINT_NO_FILL_ZERO);
+		if (!tee_attrs) {
+			rc = PKCS11_CKR_DEVICE_MEMORY;
+			goto out;
+		}
+
+		TEE_InitRefAttribute(&tee_attrs[tee_attrs_count],
+				     TEE_ATTR_RSA_OAEP_LABEL,
+				     rsa_oaep_ctx->source_data,
+				     rsa_oaep_ctx->source_data_len);
 		tee_attrs_count++;
 		break;
 	default:
@@ -682,6 +713,7 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 	switch (proc->mecha_type) {
 	case PKCS11_CKM_ECDSA:
 	case PKCS11_CKM_RSA_PKCS:
+	case PKCS11_CKM_RSA_PKCS_OAEP:
 	case PKCS11_CKM_RSA_PKCS_PSS:
 		/* For operations using provided input data */
 		switch (function) {
@@ -692,6 +724,8 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 						    out_buf, &out_size);
 			output_data = true;
 			rc = tee2pkcs_error(res);
+			if (rc == PKCS11_CKR_ARGUMENTS_BAD)
+				rc = PKCS11_CKR_DATA_LEN_RANGE;
 			break;
 
 		case PKCS11_FUNCTION_DECRYPT:
@@ -701,6 +735,8 @@ enum pkcs11_rc step_asymm_operation(struct pkcs11_session *session,
 						    out_buf, &out_size);
 			output_data = true;
 			rc = tee2pkcs_error(res);
+			if (rc == PKCS11_CKR_ARGUMENTS_BAD)
+				rc = PKCS11_CKR_ENCRYPTED_DATA_LEN_RANGE;
 			break;
 
 		case PKCS11_FUNCTION_SIGN:
