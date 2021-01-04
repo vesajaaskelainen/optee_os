@@ -104,6 +104,19 @@ void release_active_processing(struct pkcs11_session *session)
 	if (!session->processing)
 		return;
 
+	switch (session->processing->mecha_type) {
+	case PKCS11_CKM_RSA_PKCS_PSS:
+	case PKCS11_CKM_SHA1_RSA_PKCS_PSS:
+	case PKCS11_CKM_SHA256_RSA_PKCS_PSS:
+	case PKCS11_CKM_SHA384_RSA_PKCS_PSS:
+	case PKCS11_CKM_SHA512_RSA_PKCS_PSS:
+	case PKCS11_CKM_SHA224_RSA_PKCS_PSS:
+		tee_release_rsa_pss_operation(session->processing);
+		break;
+	default:
+		break;
+	}
+
 	if (session->processing->tee_hash_op_handle != TEE_HANDLE_NULL) {
 		TEE_FreeOperation(session->processing->tee_hash_op_handle);
 		session->processing->tee_hash_op_handle = TEE_HANDLE_NULL;
