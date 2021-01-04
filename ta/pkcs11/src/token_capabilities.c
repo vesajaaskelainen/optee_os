@@ -103,6 +103,9 @@ static const struct pkcs11_mechachism_modes pkcs11_modes[] = {
 	MECHANISM(PKCS11_CKM_ECDSA_SHA256, CKFM_AUTH_NO_RECOVER, ANY_PART),
 	MECHANISM(PKCS11_CKM_ECDSA_SHA384, CKFM_AUTH_NO_RECOVER, ANY_PART),
 	MECHANISM(PKCS11_CKM_ECDSA_SHA512, CKFM_AUTH_NO_RECOVER, ANY_PART),
+	/* RSA */
+	MECHANISM(PKCS11_CKM_RSA_PKCS_KEY_PAIR_GEN,
+		  PKCS11_CKFM_GENERATE_KEY_PAIR, ANY_PART),
 };
 
 #if CFG_TEE_TA_LOG_LEVEL > 0
@@ -212,6 +215,8 @@ const struct pkcs11_mechachism_modes token_mechanism[] = {
 	TA_MECHANISM(PKCS11_CKM_ECDSA_SHA256, CKFM_AUTH_NO_RECOVER),
 	TA_MECHANISM(PKCS11_CKM_ECDSA_SHA384, CKFM_AUTH_NO_RECOVER),
 	TA_MECHANISM(PKCS11_CKM_ECDSA_SHA512, CKFM_AUTH_NO_RECOVER),
+	TA_MECHANISM(PKCS11_CKM_RSA_PKCS_KEY_PAIR_GEN,
+		     PKCS11_CKFM_GENERATE_KEY_PAIR),
 };
 
 /*
@@ -320,6 +325,10 @@ void pkcs11_mechanism_supported_key_sizes(uint32_t proc_id,
 	case PKCS11_CKM_ECDSA_SHA512:
 		*min_key_size = 160;	/* in bits */
 		*max_key_size = 521;	/* in bits */
+		break;
+	case PKCS11_CKM_RSA_PKCS_KEY_PAIR_GEN:
+		*min_key_size = 256;	/* in bits */
+		*max_key_size = 4096;	/* in bits */
 		break;
 	default:
 		*min_key_size = 0;
