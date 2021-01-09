@@ -898,6 +898,7 @@ enum pkcs11_rc check_access_attrs_against_token(struct pkcs11_session *session,
 						struct obj_attrs *head)
 {
 	bool private = true;
+	bool token = false;
 
 	switch (get_class(head)) {
 	case PKCS11_CKO_SECRET_KEY:
@@ -910,6 +911,10 @@ enum pkcs11_rc check_access_attrs_against_token(struct pkcs11_session *session,
 	default:
 		return PKCS11_CKR_KEY_FUNCTION_NOT_PERMITTED;
 	}
+
+	token = get_bool(head, PKCS11_CKA_TOKEN);
+	if (!token)
+		return PKCS11_CKR_OK;
 
 	if (private && pkcs11_session_is_public(session)) {
 		DMSG("Private object access from a public session");
