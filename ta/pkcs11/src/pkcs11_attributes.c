@@ -330,6 +330,35 @@ const uint32_t raw_data_opt_or_null[] = {
 	PKCS11_CKA_OBJECT_ID, PKCS11_CKA_APPLICATION, PKCS11_CKA_VALUE,
 };
 
+/* PKCS#11 specification for certificate object (+pkcs11_any_object_xxx) */
+static const uint32_t pkcs11_certificate_mandated[] = {
+	PKCS11_CKA_CERTIFICATE_TYPE,
+};
+
+static const uint32_t pkcs11_certificate_boolprops[] = {
+	PKCS11_CKA_TRUSTED,
+};
+
+static const uint32_t pkcs11_certificate_optional[] = {
+	PKCS11_CKA_CERTIFICATE_CATEGORY, PKCS11_CKA_CHECK_VALUE,
+	PKCS11_CKA_START_DATE, PKCS11_CKA_END_DATE, PKCS11_CKA_PUBLIC_KEY_INFO
+};
+
+/*
+ * PKCS#11 specification for X.509 certificate object (+pkcs11_certificate_xxx)
+ */
+static const uint32_t pkcs11_x509_certificate_mandated[] = {
+	PKCS11_CKA_SUBJECT,
+};
+
+static const uint32_t pkcs11_x509_certificate_optional[] = {
+	PKCS11_CKA_ID, PKCS11_CKA_ISSUER, PKCS11_CKA_SERIAL_NUMBER,
+	PKCS11_CKA_VALUE, PKCS11_CKA_URL,
+	PKCS11_CKA_HASH_OF_SUBJECT_PUBLIC_KEY,
+	PKCS11_CKA_HASH_OF_ISSUER_PUBLIC_KEY,
+	PKCS11_CKA_JAVA_MIDP_SECURITY_DOMAIN, PKCS11_CKA_NAME_HASH_ALGORITHM
+};
+
 /* PKCS#11 specification for any key object (+any_object_xxx) */
 static const uint32_t any_key_boolprops[] = {
 	PKCS11_CKA_DERIVE,
@@ -557,6 +586,91 @@ static enum pkcs11_rc create_data_attributes(struct obj_attrs **out,
 
 	return set_attributes_opt_or_null(out, temp, raw_data_opt_or_null,
 					  ARRAY_SIZE(raw_data_opt_or_null));
+}
+
+static enum pkcs11_rc create_certificate_attributes(struct obj_attrs **out,
+						    struct obj_attrs *temp)
+{
+	uint32_t const *mandated = NULL;
+	uint32_t const *optional = NULL;
+	size_t mandated_count = 0;
+	size_t optional_count = 0;
+	uint32_t attr_size = 0;
+	uint32_t cert_category = PKCS11_CK_CERTIFICATE_CATEGORY_UNSPECIFIED;
+	uint32_t name_hash_alg = PKCS11_CKM_SHA_1;
+	enum pkcs11_rc rc = PKCS11_CKR_OK;
+
+	assert(get_class(temp) == PKCS11_CKO_CERTIFICATE);
+
+	rc = create_storage_attributes(out, temp);
+	if (rc)
+		return rc;
+
+	assert(get_class(*out) == PKCS11_CKO_CERTIFICATE);
+
+	rc = set_mandatory_boolprops(out, temp, pkcs11_certificate_boolprops,
+				     ARRAY_SIZE(pkcs11_certificate_boolprops));
+	if (rc)
+		return rc;
+
+	rc = set_mandatory_attributes(out, temp, pkcs11_certificate_mandated,
+				      ARRAY_SIZE(pkcs11_certificate_mandated));
+	if (rc)
+		return rc;
+
+	rc = set_optional_attributes(out, temp, pkcs11_certificate_optional,
+				     ARRAY_SIZE(pkcs11_certificate_optional));
+	if (rc)
+		return rc;
+
+	switch (get_certificate_type(*out)) {
+	case PKCS11_CKC_X_509:
+		mandated = pkcs11_x509_certificate_mandated;
+		optional = pkcs11_x509_certificate_optional;
+		mandated_count = ARRAY_SIZE(pkcs11_x509_certificate_mandated);
+		optional_count = ARRAY_SIZE(pkcs11_x509_certificate_optional);
+		break;
+	default:
+		EMSG("Invalid certificate type %#"PRIx32"/%s",
+		     get_certificate_type(*out),
+		     id2str_certificate_type(get_certificate_type(*out)));
+
+		return PKCS11_CKR_TEMPLATE_INCONSISTENT;
+	}
+
+	rc = set_mandatory_attributes(out, temp, mandated, mandated_count);
+	if (rc)
+		return rc;
+
+	rc = set_optional_attributes(out, temp, optional, optional_count);
+	if (rc)
+		return rc;
+
+	attr_size = 0;
+	rc = get_attribute_ptr(*out, PKCS11_CKA_CERTIFICATE_CATEGORY, NULL,
+			       &attr_size);
+	if ((rc == PKCS11_CKR_OK && attr_size == 0) ||
+	    rc == PKCS11_RV_NOT_FOUND) {
+		rc = set_attribute(out, PKCS11_CKA_CERTIFICATE_CATEGORY,
+				   &cert_category,
+				   sizeof(cert_category));
+		if (rc)
+			return rc;
+	}
+
+	attr_size = 0;
+	rc = get_attribute_ptr(*out, PKCS11_CKA_NAME_HASH_ALGORITHM, NULL,
+			       &attr_size);
+	if ((rc == PKCS11_CKR_OK && attr_size == 0) ||
+	    rc == PKCS11_RV_NOT_FOUND) {
+		rc = set_attribute(out, PKCS11_CKA_NAME_HASH_ALGORITHM,
+				   &name_hash_alg,
+				   sizeof(name_hash_alg));
+		if (rc)
+			return rc;
+	}
+
+	return rc;
 }
 
 static enum pkcs11_rc create_pub_key_attributes(struct obj_attrs **out,
@@ -931,6 +1045,9 @@ create_attributes_from_template(struct obj_attrs **out, void *template,
 	case PKCS11_CKO_DATA:
 		rc = create_data_attributes(&attrs, temp);
 		break;
+	case PKCS11_CKO_CERTIFICATE:
+		rc = create_certificate_attributes(&attrs, temp);
+		break;
 	case PKCS11_CKO_SECRET_KEY:
 		rc = sanitize_symm_key_attributes(&temp, function);
 		if (rc)
@@ -1125,6 +1242,7 @@ enum pkcs11_rc check_access_attrs_against_token(struct pkcs11_session *session,
 	case PKCS11_CKO_PRIVATE_KEY:
 	case PKCS11_CKO_PUBLIC_KEY:
 	case PKCS11_CKO_DATA:
+	case PKCS11_CKO_CERTIFICATE:
 		private = object_is_private(head);
 		break;
 	default:
@@ -1769,6 +1887,73 @@ static bool attr_is_modifiable_private_key(struct pkcs11_attribute_head *attr,
 	}
 }
 
+static bool attr_is_modifiable_certificate(struct pkcs11_attribute_head *attr,
+					   struct pkcs11_session *session,
+					   struct pkcs11_object *obj)
+{
+	uint8_t boolval = 0;
+	uint32_t boolsize = 0;
+	enum pkcs11_rc rc = PKCS11_CKR_GENERAL_ERROR;
+
+	/* Trusted certificates cannot be modified. */
+	rc = get_attribute(obj->attributes, PKCS11_CKA_TRUSTED,
+			   &boolval, &boolsize);
+	if (rc || boolval == PKCS11_TRUE)
+		return false;
+
+	/* Common certificate attributes */
+	switch (attr->id) {
+	case PKCS11_CKA_TRUSTED:
+		/*
+		 * The CKA_TRUSTED attribute cannot be set to CK_TRUE by an
+		 * application. It MUST be set by a token initialization
+		 * application or by the token’s SO.
+		 */
+		return pkcs11_session_is_so(session);
+
+	case PKCS11_CKA_CERTIFICATE_TYPE:
+	case PKCS11_CKA_CERTIFICATE_CATEGORY:
+		return false;
+
+	default:
+		break;
+	}
+
+	/* Certificate type specific attributes */
+	switch (get_certificate_type(obj->attributes)) {
+	case PKCS11_CKC_X_509:
+		/*
+		 * Only the CKA_ID, CKA_ISSUER, and CKA_SERIAL_NUMBER
+		 * attributes may be modified after the object is created.
+		 */
+		switch (attr->id) {
+		case PKCS11_CKA_ID:
+		case PKCS11_CKA_ISSUER:
+		case PKCS11_CKA_SERIAL_NUMBER:
+			return true;
+
+		case PKCS11_CKA_SUBJECT:
+		case PKCS11_CKA_VALUE:
+		case PKCS11_CKA_URL:
+		case PKCS11_CKA_HASH_OF_SUBJECT_PUBLIC_KEY:
+		case PKCS11_CKA_HASH_OF_ISSUER_PUBLIC_KEY:
+		case PKCS11_CKA_JAVA_MIDP_SECURITY_DOMAIN:
+		case PKCS11_CKA_NAME_HASH_ALGORITHM:
+			return false;
+
+		default:
+			break;
+		}
+		break;
+
+	default:
+		/* Unsupported certificate type */
+		return false;
+	}
+
+	return true;
+}
+
 static bool attribute_is_modifiable(struct pkcs11_session *session,
 				    struct pkcs11_attribute_head *req_attr,
 				    struct pkcs11_object *obj,
@@ -1817,6 +2002,8 @@ static bool attribute_is_modifiable(struct pkcs11_session *session,
 	case PKCS11_CKO_DATA:
 		/* None of the data object attributes are modifiable */
 		return false;
+	case PKCS11_CKO_CERTIFICATE:
+		return attr_is_modifiable_certificate(req_attr, session, obj);
 	default:
 		break;
 	}
