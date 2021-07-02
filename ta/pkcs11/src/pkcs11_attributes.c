@@ -2210,3 +2210,23 @@ enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **pub_head,
 	else
 		return set_attribute(pub_head, PKCS11_CKA_ID, id2, id2_size);
 }
+
+enum pkcs11_rc generate_optional_attribute(struct obj_attrs *head,
+					   uint32_t attribute,
+					   void *attr __unused,
+					   uint32_t *attr_size)
+{
+	uint32_t class = get_class(head);
+
+	if (pkcs11_attr_class_is_key(class)) {
+		/* Handle optional key class attributes */
+
+		/* Attributes from 'any_key_optional' */
+		if (attribute == PKCS11_CKA_ALLOWED_MECHANISMS) {
+			*attr_size = 0;
+			return PKCS11_CKR_OK;
+		}
+	}
+
+	return PKCS11_RV_NOT_FOUND;
+}

@@ -201,4 +201,17 @@ enum pkcs11_rc get_key_data_to_wrap(struct obj_attrs *head, void **data,
 enum pkcs11_rc add_missing_attribute_id(struct obj_attrs **pub_head,
 					struct obj_attrs **priv_head);
 
+/*
+ * Generate optional attribute value if possible.
+ *
+ * @head - Object attributes
+ * @attribute - Attribute ID
+ * @attr - Buffer where to write result
+ * @attr_size - Size of buffer
+ * Return an PKCS11 return code
+ */
+enum pkcs11_rc generate_optional_attribute(struct obj_attrs *head,
+					   uint32_t attribute, void *attr,
+					   uint32_t *attr_size);
+
 #endif /*PKCS11_TA_PKCS11_ATTRIBUTES_H*/

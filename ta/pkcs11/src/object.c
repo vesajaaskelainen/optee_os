@@ -856,6 +856,14 @@ enum pkcs11_rc entry_get_attribute_value(struct pkcs11_client *client,
 		 */
 		rc = get_attribute(obj->attributes, cli_head.id, data_ptr,
 				   &cli_head.size);
+
+		if (rc == PKCS11_RV_NOT_FOUND) {
+			/* Check if we can generate the optional value */
+			rc = generate_optional_attribute(obj->attributes,
+							 cli_head.id, data_ptr,
+							 &cli_head.size);
+		}
+
 		/* Check 2. */
 		switch (rc) {
 		case PKCS11_CKR_OK:
