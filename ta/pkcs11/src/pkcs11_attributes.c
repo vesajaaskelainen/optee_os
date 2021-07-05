@@ -1335,6 +1335,7 @@ enum pkcs11_rc check_created_attrs_against_processing(uint32_t proc_id,
 	case PKCS11_PROCESSING_IMPORT:
 	case PKCS11_CKM_AES_ECB:
 	case PKCS11_CKM_AES_CBC:
+	case PKCS11_CKM_AES_CBC_PAD:
 	case PKCS11_CKM_AES_ECB_ENCRYPT_DATA:
 	case PKCS11_CKM_AES_CBC_ENCRYPT_DATA:
 	case PKCS11_CKM_ECDH1_DERIVE:

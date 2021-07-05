@@ -898,6 +898,58 @@ enum pkcs11_rc wrap_data_by_symm_enc(struct pkcs11_session *session,
 			TEE_Free(in_buf);
 
 		return tee2pkcs_error(res);
+
+	case PKCS11_CKM_AES_CBC_PAD:
+		align = data_sz % TEE_AES_BLOCK_SIZE;
+		if (!align)
+			in_sz = data_sz + TEE_AES_BLOCK_SIZE;
+		else
+			in_sz = data_sz + (TEE_AES_BLOCK_SIZE - align);
+
+		if (*out_sz < in_sz) {
+			*out_sz = in_sz;
+			return PKCS11_CKR_BUFFER_TOO_SMALL;
+		}
+
+		if (data_sz > TEE_AES_BLOCK_SIZE) {
+			in_sz = data_sz - align;
+			res = TEE_CipherUpdate(proc->tee_op_handle,
+					       data, in_sz, tmp_buf,
+					       &tmp_sz);
+			if (res) {
+				if (res == TEE_ERROR_SHORT_BUFFER)
+					assert(0);
+				return tee2pkcs_error(res);
+			}
+			tmp_buf += tmp_sz;
+			tmp_sz = *out_sz - tmp_sz;
+		} else {
+			in_sz = 0;
+		}
+
+		in_buf = TEE_Malloc(TEE_AES_BLOCK_SIZE, TEE_MALLOC_FILL_ZERO);
+		if (!in_buf)
+			return PKCS11_CKR_DEVICE_MEMORY;
+
+		TEE_MemMove(in_buf, (uint8_t *)data + in_sz, align);
+
+		TEE_MemFill((uint8_t *)in_buf + align,
+			    TEE_AES_BLOCK_SIZE - align,
+			    TEE_AES_BLOCK_SIZE - align);
+
+		in_sz = TEE_AES_BLOCK_SIZE;
+
+		res = TEE_CipherDoFinal(proc->tee_op_handle, in_buf, in_sz,
+					tmp_buf, &tmp_sz);
+		if (res == TEE_SUCCESS || res == TEE_ERROR_SHORT_BUFFER) {
+			*out_sz = tmp_sz;
+			*out_sz += tmp_buf - (uint8_t *)out_buf;
+		}
+
+		TEE_Free(in_buf);
+
+		return tee2pkcs_error(res);
+
 	default:
 		return PKCS11_CKR_MECHANISM_INVALID;
 	}
@@ -911,6 +963,7 @@ enum pkcs11_rc unwrap_key_by_symm(struct pkcs11_session *session, void *data,
 {
 	TEE_Result res = TEE_ERROR_GENERIC;
 	struct active_processing *proc = session->processing;
+	uint8_t *tmp_buf = NULL;
 
 	if (input_data_size_is_valid(proc, PKCS11_FUNCTION_DECRYPT, data_sz))
 		return PKCS11_CKR_WRAPPED_KEY_LEN_RANGE;
@@ -937,6 +990,30 @@ enum pkcs11_rc unwrap_key_by_symm(struct pkcs11_session *session, void *data,
 			*out_buf = NULL;
 			return PKCS11_CKR_WRAPPED_KEY_INVALID;
 		}
+		break;
+	case PKCS11_CKM_AES_CBC_PAD:
+		*out_sz = 0;
+		res = TEE_CipherDoFinal(proc->tee_op_handle, data, data_sz,
+					out_buf, out_sz);
+		if (res == TEE_ERROR_SHORT_BUFFER) {
+			*out_buf = TEE_Malloc(*out_sz, 0);
+			if (!*out_buf)
+				return PKCS11_CKR_DEVICE_MEMORY;
+			res = TEE_CipherDoFinal(proc->tee_op_handle, data,
+						data_sz, *out_buf, out_sz);
+		}
+		if (tee2pkcs_error(res)) {
+			TEE_Free(*out_buf);
+			*out_buf = NULL;
+			return PKCS11_CKR_WRAPPED_KEY_INVALID;
+		}
+		tmp_buf = *out_buf;
+		if (tmp_buf[*out_sz - 1] > TEE_AES_BLOCK_SIZE) {
+			TEE_Free(*out_buf);
+			*out_buf = NULL;
+			return PKCS11_CKR_WRAPPED_KEY_INVALID;
+		}
+		*out_sz -= tmp_buf[*out_sz - 1];
 		break;
 	default:
 		return PKCS11_CKR_MECHANISM_INVALID;
